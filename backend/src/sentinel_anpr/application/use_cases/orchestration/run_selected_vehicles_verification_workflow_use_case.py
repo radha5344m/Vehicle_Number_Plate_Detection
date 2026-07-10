@@ -40,11 +40,30 @@ class RunSelectedVehiclesVerificationWorkflowUseCase:
         regions = command.selected_regions
 
         if not regions:
-            investigation = self._single_vehicle_workflow.execute(command)
-            return RunVehicleVerificationWorkflowBatchResult(
-                workflow_id=workflow_id,
-                investigations=(investigation,),
-            )
+            detected_vehicles = self._scene_detection.detect_vehicles(command.image_bytes)
+            if len(detected_vehicles) == 1:
+                vehicle = detected_vehicles[0]
+                regions = (
+                    SelectedVehicleRegionDto(
+                        vehicle_id=vehicle.vehicle_id,
+                        x=vehicle.x,
+                        y=vehicle.y,
+                        width=vehicle.width,
+                        height=vehicle.height,
+                    ),
+                )
+                self._logger.info(
+                    "single_vehicle_auto_region_applied",
+                    workflow_id=workflow_id,
+                    vehicle_id=vehicle.vehicle_id,
+                    detail="Applied detected bounding box for single-vehicle automatic verification",
+                )
+            else:
+                investigation = self._single_vehicle_workflow.execute(command)
+                return RunVehicleVerificationWorkflowBatchResult(
+                    workflow_id=workflow_id,
+                    investigations=(investigation,),
+                )
 
         investigations: list[RunVehicleVerificationWorkflowResult] = []
         scene_context = self._scene_detection.analyze_scene(command.image_bytes)

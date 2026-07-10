@@ -14,6 +14,7 @@ interface MultiRectangleSelectorProps {
   imageUrl: string;
   regions: VehicleRegion[];
   selectedRegionId: string | null;
+  detectedCount?: number;
   disabled?: boolean;
   verifying?: boolean;
   onRegionsChange: (regions: VehicleRegion[]) => void;
@@ -25,6 +26,7 @@ export function MultiRectangleSelector({
   imageUrl,
   regions,
   selectedRegionId,
+  detectedCount = 0,
   disabled = false,
   verifying = false,
   onRegionsChange,
@@ -86,9 +88,15 @@ export function MultiRectangleSelector({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="text-sm font-medium text-slate-900">Rectangles: {regions.length}</p>
+        <p className="text-sm font-medium text-slate-900">
+          {detectedCount > 1
+            ? `${detectedCount} Vehicles Detected`
+            : `Rectangles: ${regions.length}`}
+        </p>
         <p className="mt-1 text-sm text-slate-600">
-          Draw one rectangle per vehicle. Each rectangle is cropped and investigated independently.
+          {detectedCount > 1
+            ? "Please mark each vehicle you want to investigate."
+            : "Draw one rectangle per vehicle. Each rectangle is cropped and investigated independently."}
         </p>
       </div>
 

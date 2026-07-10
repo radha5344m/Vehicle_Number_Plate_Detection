@@ -284,3 +284,44 @@ def test_selected_vehicle_workflow_crops_and_runs_one_vision_call_per_region() -
     assert vision.calls == 2
     assert all(item.status == WorkflowStatus.COMPLETED for item in result.investigations)
     assert all(size < len(full_image) for size in vision.received_sizes)
+
+
+def test_single_detected_vehicle_uses_detected_bbox_when_no_regions() -> None:
+    class _SingleVehicleSceneDetection(_FakeSceneDetection):
+        def detect_vehicles(self, image_bytes: bytes) -> tuple[DetectedVehicleDto, ...]:
+            del image_bytes
+            return (DetectedVehicleDto("detected-1", 0.1, 0.1, 0.35, 0.5, 0.9, "car"),)
+
+        def mask_regions_for_selection(
+            self,
+            image_bytes: bytes,
+            selected_vehicle_id: str,
+            scene_context: SceneAnalysisContextDto | None = None,
+        ) -> tuple[SelectedVehicleRegionDto, ...]:
+            del image_bytes, selected_vehicle_id, scene_context
+            return ()
+
+    vision = _FakeVision()
+    use_case = RunSelectedVehiclesVerificationWorkflowUseCase(
+        single_vehicle_workflow=_single_workflow(vision),
+        scene_detection_service=_SingleVehicleSceneDetection(),
+        logger=_FakeLogger(),
+    )
+    full_image = _image_bytes()
+    command = RunVehicleVerificationWorkflowCommand(
+        officer_id="officer-1",
+        officer_name="Test Officer",
+        badge_number="AP001",
+        officer_rank="Constable",
+        image_bytes=full_image,
+        content_type="image/jpeg",
+        original_filename="scene.jpg",
+        selected_regions=None,
+    )
+
+    result = use_case.execute(command)
+
+    assert len(result.investigations) == 1
+    assert vision.calls == 1
+    assert vision.received_sizes[0] < len(full_image)
+    assert result.investigations[0].status == WorkflowStatus.COMPLETED

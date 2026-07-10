@@ -7,6 +7,7 @@ import {
   type VerificationMethod,
 } from "@/components/features/workflow/VerificationMethodSelector";
 import { MultiRectangleSelector } from "@/components/features/workflow/MultiRectangleSelector";
+import { SmartVerificationStatus } from "@/components/features/workflow/SmartVerificationStatus";
 import { VehicleInvestigationResults } from "@/components/features/workflow/VehicleInvestigationResults";
 import { ImageUploadZone } from "@/components/features/upload/ImageUploadZone";
 import { AiProcessingProgress } from "@/components/ui/AiProcessingProgress";
@@ -21,13 +22,17 @@ import { AppLayout } from "@/layouts/AppLayout";
 export function VehicleVerificationWorkflowPage() {
   const toast = useToast();
   const {
+    startSmartWorkflow,
     verifyRectangles,
-    prepareImage,
     results,
     loading,
     isVerifying,
+    isDetecting,
     error,
+    detectionError,
     loadingMessage,
+    workflowMode,
+    detectedCount,
     regions,
     selectedRegionId,
     setRegions,
@@ -38,7 +43,7 @@ export function VehicleVerificationWorkflowPage() {
   const [vehicleImage, setVehicleImage] = useState<File | null>(null);
   const [vehicleImageUrl, setVehicleImageUrl] = useState<string | null>(null);
   const [cameraSessionKey, setCameraSessionKey] = useState(0);
-  const [editorReady, setEditorReady] = useState(false);
+  const [workflowStarted, setWorkflowStarted] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -82,18 +87,23 @@ export function VehicleVerificationWorkflowPage() {
 
   const clearVehicleImage = useCallback(() => {
     setVehicleImage(null);
-    setEditorReady(false);
+    setWorkflowStarted(false);
     reset();
   }, [reset]);
 
-  const loadImageForEditing = useCallback(
-    (file: File) => {
+  const handleImageSelected = useCallback(
+    async (file: File) => {
+      setWorkflowStarted(false);
       reset();
       setVehicleImage(file);
-      prepareImage();
-      setEditorReady(true);
+      setWorkflowStarted(true);
+      try {
+        await startSmartWorkflow(file);
+      } catch {
+        // surfaced via hook + toast
+      }
     },
-    [prepareImage, reset],
+    [reset, startSmartWorkflow],
   );
 
   function handleMethodChange(nextMethod: VerificationMethod) {
@@ -115,12 +125,15 @@ export function VehicleVerificationWorkflowPage() {
 
   const handleCapturedFile = useCallback(
     (file: File) => {
-      loadImageForEditing(file);
+      void handleImageSelected(file);
     },
-    [loadImageForEditing],
+    [handleImageSelected],
   );
 
-  const showRectangleEditor = Boolean(vehicleImage && vehicleImageUrl && editorReady);
+  const showAutoStatus =
+    workflowStarted && workflowMode === "auto" && (isDetecting || isVerifying || results.length === 0);
+  const showRectangleEditor =
+    workflowStarted && workflowMode === "manual" && Boolean(vehicleImage && vehicleImageUrl);
   const regionThumbnails = useVehicleRegionThumbnails(vehicleImageUrl, regions);
 
   return (
@@ -129,14 +142,14 @@ export function VehicleVerificationWorkflowPage() {
         <PageHeader
           badge="Vision AI"
           title="Vehicle Verification"
-          description="Upload or capture a scene image, draw one rectangle per vehicle, then verify each region independently."
+          description="Single vehicles are verified automatically. Multiple vehicles use rectangle selection for independent investigation."
         />
 
         <Card accent>
           <VerificationMethodSelector
             selected={method}
             onSelect={handleMethodChange}
-            disabled={loading || isVerifying}
+            disabled={loading || isVerifying || isDetecting}
           />
         </Card>
 
@@ -148,9 +161,9 @@ export function VehicleVerificationWorkflowPage() {
           >
             <div className="space-y-5">
               <ImageUploadZone
-                disabled={loading || isVerifying}
+                disabled={loading || isVerifying || isDetecting}
                 onFileSelected={(file) => {
-                  loadImageForEditing(file);
+                  void handleImageSelected(file);
                 }}
                 onFileCleared={clearVehicleImage}
               />
@@ -161,12 +174,12 @@ export function VehicleVerificationWorkflowPage() {
         {method === "camera" && (
           <Card
             title="Live Camera"
-            description="Capture a live photo, then draw rectangles around each vehicle"
+            description="Capture a live photo — single vehicles verify automatically, multiple vehicles use rectangle selection"
             icon={<ShieldCheck className="h-4 w-4" />}
           >
             <LiveCameraCapture
               key={cameraSessionKey}
-              disabled={loading || isVerifying}
+              disabled={loading || isVerifying || isDetecting}
               verifying={loading || isVerifying}
               hideCapturedVerify
               onCapturedFile={handleCapturedFile}
@@ -183,16 +196,38 @@ export function VehicleVerificationWorkflowPage() {
           </Card>
         )}
 
+        {showAutoStatus && (
+          <Card
+            title="Automatic Investigation"
+            description="Single vehicle detected — verification runs without rectangle selection"
+            icon={<ShieldCheck className="h-4 w-4" />}
+          >
+            <SmartVerificationStatus
+              detecting={isDetecting}
+              verifying={isVerifying}
+              detectedCount={detectedCount}
+            />
+          </Card>
+        )}
+
         {showRectangleEditor && vehicleImageUrl && (
           <Card
             title="Vehicle Rectangles"
             description="Create, move, resize, or delete rectangles — one per vehicle"
             icon={<ShieldCheck className="h-4 w-4" />}
           >
+            {detectionError && (
+              <div className="mb-4">
+                <Alert variant="warning" title="Detection Notice">
+                  {detectionError}
+                </Alert>
+              </div>
+            )}
             <MultiRectangleSelector
               imageUrl={vehicleImageUrl}
               regions={regions}
               selectedRegionId={selectedRegionId}
+              detectedCount={detectedCount}
               disabled={loading || isVerifying}
               verifying={isVerifying}
               onRegionsChange={setRegions}
@@ -202,21 +237,27 @@ export function VehicleVerificationWorkflowPage() {
           </Card>
         )}
 
-        {loading && (
+        {(loading || isDetecting) && (
           <AiProcessingProgress
             active
-            title="Running Vision AI Investigation"
+            title={
+              isDetecting
+                ? "Detecting Vehicles"
+                : workflowMode === "auto"
+                  ? "Starting Automatic Investigation"
+                  : "Running Vision AI Investigation"
+            }
             statusMessage={loadingMessage}
           />
         )}
 
-        {error && !loading && results.length === 0 && (
+        {error && !loading && !isDetecting && results.length === 0 && (
           <Alert variant="error" title="Verification Failed">
             {error}
           </Alert>
         )}
 
-        {results.length > 0 && !loading && (
+        {results.length > 0 && !loading && !isDetecting && (
           <VehicleInvestigationResults
             results={results}
             vehicleImageUrl={vehicleImageUrl}
