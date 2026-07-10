@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: sentinel-anpr
+    runtime: python
+    rootDir: backend
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      pip install -e . &&
+      python scripts/build_frontend_bundle.py
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /v1/health
+    envVars:
+      - key: SENTINEL_ENV
+        value: production
+      - key: SENTINEL_VISION_PROVIDER
+        value: gemini
+      - key: SENTINEL_DATABASE_URL
+        value: sqlite:///./data/sentinel_anpr.db
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SENTINEL_AUTH_JWT_SECRET
+        generateValue: true
+      - key: SENTINEL_CORS_ORIGINS
+        value: http://localhost:5173,http://127.0.0.1:5173

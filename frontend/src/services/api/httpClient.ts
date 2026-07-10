@@ -77,6 +77,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore parse errors
     }
+    if (response.status === 404 && path.startsWith("/v1/")) {
+      message =
+        "API route not found. If the frontend and backend are on different hosts, " +
+        "set VITE_API_BASE_URL to your backend URL when building the frontend.";
+    }
     // A 401 on any request other than the login attempt itself means the
     // session has expired; recover by signing the officer out.
     if (response.status === 401 && !url.includes("/auth/login")) {

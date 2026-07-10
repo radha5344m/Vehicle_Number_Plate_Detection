@@ -100,6 +100,16 @@ def validate_vision_configuration(settings: "Settings | None" = None) -> None:
     )
 
 
+_DEFAULT_CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+
+
+def parse_cors_origins(raw: str | None) -> list[str]:
+    """Split a comma-separated CORS allowlist into normalized origin strings."""
+    if not raw:
+        return []
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 class Settings(BaseSettings):
     """Load configuration from environment variables and optional .env file."""
 
@@ -116,13 +126,18 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
     database_url: str = Field(default="sqlite:///./data/sentinel_anpr.db")
     api_host: str = Field(default="0.0.0.0")
-    api_port: int = Field(default=8080)
+    api_port: int = Field(
+        default=8080,
+        validation_alias=AliasChoices("SENTINEL_API_PORT", "PORT"),
+    )
     auth_jwt_secret: str = Field(default="dev-only-change-in-production")
     auth_jwt_issuer: str = Field(default="sentinel-anpr-ai")
     auth_access_token_ttl_seconds: int = Field(default=900)
     auth_refresh_token_ttl_seconds: int = Field(default=604800)
     upload_storage_dir: str = Field(default="data/uploads")
     report_storage_dir: str = Field(default="data/reports")
+    # Comma-separated browser origins allowed to call the API (required for split deploy).
+    cors_origins: str = Field(default=_DEFAULT_CORS_ORIGINS)
 
     # Vision provider: "gemini" (Google Gemini Vision) or "stub" (tests/local).
     vision_provider: str = Field(default="gemini")

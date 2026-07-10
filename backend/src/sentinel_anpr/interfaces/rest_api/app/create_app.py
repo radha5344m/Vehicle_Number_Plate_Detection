@@ -3,8 +3,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from sentinel_anpr.infrastructure.config.settings import get_settings
+from sentinel_anpr.infrastructure.config.settings import get_settings, parse_cors_origins
 from sentinel_anpr.interfaces.rest_api.app.lifespan import lifespan
+from sentinel_anpr.interfaces.rest_api.app.static_frontend import (
+    register_api_root_route,
+    register_frontend_static_routes,
+)
 from sentinel_anpr.interfaces.rest_api.v1.errors.auth_error_handlers import (
     register_auth_exception_handlers,
 )
@@ -37,10 +41,7 @@ def create_app() -> FastAPI:
     # CORS must be outermost so preflight OPTIONS and error responses include ACAO headers.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-        ],
+        allow_origins=parse_cors_origins(settings.cors_origins),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -50,4 +51,6 @@ def create_app() -> FastAPI:
     register_vehicle_exception_handlers(app)
     register_global_exception_handlers(app)
     app.include_router(api_v1_router)
+    register_frontend_static_routes(app)
+    register_api_root_route(app)
     return app

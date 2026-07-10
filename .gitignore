@@ -47,6 +47,7 @@ config/local/
 # Node / frontend
 node_modules/
 frontend/dist/
+backend/static/frontend/
 
 # SQLite data
 data/
