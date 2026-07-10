@@ -1,4 +1,4 @@
-import { getApiData, postFormDataApi } from "@/services/api/httpClient";
+import { getAuthenticatedApiData, postFormDataApi } from "@/services/api/httpClient";
 import type { VehicleVerificationWorkflowResult, VisionProgress } from "@/types/api/workflow";
 
 export const workflowService = {
@@ -18,8 +18,11 @@ export const workflowService = {
     );
   },
 
-  getVisionProgress(correlationId: string): Promise<VisionProgress> {
+  getVisionProgress(correlationId: string, signal?: AbortSignal): Promise<VisionProgress> {
     const query = new URLSearchParams({ correlation_id: correlationId });
-    return getApiData<VisionProgress>(`/v1/workflow/vision-progress?${query.toString()}`);
+    return getAuthenticatedApiData<VisionProgress>(
+      `/v1/workflow/vision-progress?${query.toString()}`,
+      signal ? { signal } : undefined,
+    );
   },
 };

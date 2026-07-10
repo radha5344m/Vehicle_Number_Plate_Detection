@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HttpError } from "@/services/api/httpClient";
 import { workflowService } from "@/services/workflowService";
+import { isAuthenticated } from "@/stores/authStore";
 import type { VehicleVerificationWorkflowResult } from "@/types/api/workflow";
 
 function normalizeWorkflowResult(
@@ -37,45 +38,78 @@ export function useVehicleVerificationWorkflow(): UseVehicleVerificationWorkflow
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
-  const activeCorrelationId = useRef<string | null>(null);
+  const pollAbortRef = useRef<AbortController | null>(null);
+  const pollIntervalRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (!loading || !activeCorrelationId.current) {
+  function stopProgressPolling() {
+    pollAbortRef.current?.abort();
+    pollAbortRef.current = null;
+    if (pollIntervalRef.current !== null) {
+      window.clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }
+
+  function startProgressPolling(correlationId: string) {
+    stopProgressPolling();
+
+    if (!isAuthenticated()) {
       return;
     }
 
-    let cancelled = false;
-    const correlationId = activeCorrelationId.current;
+    const controller = new AbortController();
+    pollAbortRef.current = controller;
 
     async function pollProgress() {
+      if (controller.signal.aborted || !isAuthenticated()) {
+        return;
+      }
+
       try {
-        const progress = await workflowService.getVisionProgress(correlationId);
-        if (cancelled || !progress.message) return;
-        if (progress.phase !== "idle") {
+        const progress = await workflowService.getVisionProgress(
+          correlationId,
+          controller.signal,
+        );
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (progress.phase !== "idle" && progress.message) {
           setProgressMessage(progress.message);
         }
-      } catch {
-        // Progress polling is best-effort while the workflow request is in flight.
+
+        if (progress.phase === "completed" || progress.phase === "failed") {
+          stopProgressPolling();
+        }
+      } catch (err) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (err instanceof HttpError && (err.status === 401 || err.code === "AUTH_MISSING")) {
+          stopProgressPolling();
+        }
       }
     }
 
     void pollProgress();
-    const interval = window.setInterval(() => {
+    pollIntervalRef.current = window.setInterval(() => {
       void pollProgress();
     }, 1000);
+  }
 
+  useEffect(() => {
     return () => {
-      cancelled = true;
-      window.clearInterval(interval);
+      stopProgressPolling();
     };
-  }, [loading]);
+  }, []);
 
   async function run(vehicleImage: File, locationLabel?: string) {
     const correlationId = createCorrelationId();
-    activeCorrelationId.current = correlationId;
     setLoading(true);
     setError(null);
     setProgressMessage(null);
+    startProgressPolling(correlationId);
+
     try {
       const data = await workflowService.runVehicleVerification(
         vehicleImage,
@@ -93,13 +127,14 @@ export function useVehicleVerificationWorkflow(): UseVehicleVerificationWorkflow
       setError(message);
       throw new Error(message);
     } finally {
-      activeCorrelationId.current = null;
+      stopProgressPolling();
       setProgressMessage(null);
       setLoading(false);
     }
   }
 
   function reset() {
+    stopProgressPolling();
     setResult(null);
     setError(null);
     setProgressMessage(null);

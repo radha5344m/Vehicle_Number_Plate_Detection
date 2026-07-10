@@ -17,6 +17,22 @@ export class HttpError extends Error {
 
 const LOGIN_PATH = "/login";
 
+const PUBLIC_API_PATHS = new Set(["/v1/health", "/v1/auth/login"]);
+
+function normalizeApiPath(path: string): string {
+  return path.split("?")[0] ?? path;
+}
+
+function requiresAuthentication(path: string): boolean {
+  const normalized = normalizeApiPath(path);
+  return normalized.startsWith("/v1/") && !PUBLIC_API_PATHS.has(normalized);
+}
+
+function resolveAccessToken(): string | null {
+  const token = getAccessToken()?.trim();
+  return token ? token : null;
+}
+
 /**
  * Handle an expired/invalid session. The backend has no token-refresh
  * endpoint, so a 401 on an authenticated request means the officer must
@@ -35,7 +51,16 @@ function handleUnauthorized(): void {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const base = env.apiBaseUrl.replace(/\/$/, "");
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-  const token = getAccessToken();
+  const token = resolveAccessToken();
+
+  if (requiresAuthentication(path) && !token) {
+    throw new HttpError(
+      "Authentication is required. Please sign in and try again.",
+      401,
+      "AUTH_MISSING",
+    );
+  }
+
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...(init?.headers as Record<string, string> | undefined),
@@ -93,8 +118,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function getJson<T>(path: string): Promise<T> {
-  return request<T>(path);
+export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
+  return request<T>(path, {
+    ...init,
+    method: init?.method ?? "GET",
+  });
 }
 
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
@@ -124,9 +152,24 @@ export async function deleteJson<T>(path: string): Promise<T> {
   });
 }
 
-export async function getApiData<T>(path: string): Promise<T> {
-  const envelope = await getJson<ApiResponse<T>>(path);
+export async function getApiData<T>(path: string, init?: RequestInit): Promise<T> {
+  const envelope = await getJson<ApiResponse<T>>(path, init);
   return envelope.data;
+}
+
+/** GET helper for protected endpoints — always requires a stored access token. */
+export async function getAuthenticatedApiData<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  if (!resolveAccessToken()) {
+    throw new HttpError(
+      "Authentication is required. Please sign in and try again.",
+      401,
+      "AUTH_MISSING",
+    );
+  }
+  return getApiData<T>(path, init);
 }
 
 export async function postApiData<T>(path: string, body: unknown): Promise<T> {
