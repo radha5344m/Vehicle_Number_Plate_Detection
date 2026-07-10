@@ -36,7 +36,43 @@ One service serves both the API and the built React app on the same origin.
 2. Set env vars: `GEMINI_API_KEY`, `SENTINEL_VISION_PROVIDER=gemini`, `SENTINEL_AUTH_JWT_SECRET`
 3. Leave `VITE_API_BASE_URL` empty — the build script sets same-origin mode automatically.
 
-## Option B — Split frontend + backend
+## Option B — Split frontend (Vercel) + backend (Render)
+
+**Your deployment:**
+
+| Service | URL |
+|---------|-----|
+| Frontend (Vercel) | `https://vehicle-number-plate-detection-rho.vercel.app` |
+| Backend (Render) | `https://vehicle-number-plate-detection-0eol.onrender.com` |
+
+### Render (backend) environment variables
+
+```
+SENTINEL_CORS_ORIGINS=https://vehicle-number-plate-detection-rho.vercel.app
+SENTINEL_FRONTEND_URL=https://vehicle-number-plate-detection-rho.vercel.app
+SENTINEL_VISION_PROVIDER=gemini
+GEMINI_API_KEY=<your-key>
+SENTINEL_AUTH_JWT_SECRET=<random-secret>
+```
+
+Redeploy the Render service after saving env vars.
+
+### Vercel (frontend) environment variables
+
+Set at **build time**:
+
+```
+VITE_API_BASE_URL=https://vehicle-number-plate-detection-0eol.onrender.com
+VITE_APP_ENV=production
+```
+
+Redeploy Vercel after saving env vars.
+
+### CORS error fix
+
+If you see `blocked by CORS policy` / `No 'Access-Control-Allow-Origin' header`, the Render backend is not allowing your Vercel origin. Add `SENTINEL_CORS_ORIGINS` on Render exactly as above and redeploy.
+
+## Option B (generic) — Split frontend + backend
 
 1. **Backend** (Render Web Service): deploy `backend/` with start command above.
 2. **Frontend** (Render Static Site or similar):

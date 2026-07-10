@@ -107,7 +107,20 @@ def parse_cors_origins(raw: str | None) -> list[str]:
     """Split a comma-separated CORS allowlist into normalized origin strings."""
     if not raw:
         return []
-    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+
+
+def resolve_cors_origins(settings: "Settings | None" = None) -> list[str]:
+    """Build the effective CORS allowlist from settings and optional frontend URL."""
+    if settings is None:
+        settings = get_settings()
+
+    origins = parse_cors_origins(settings.cors_origins)
+    if settings.frontend_url:
+        frontend_origin = settings.frontend_url.strip().rstrip("/")
+        if frontend_origin and frontend_origin not in origins:
+            origins.append(frontend_origin)
+    return origins
 
 
 class Settings(BaseSettings):
@@ -138,6 +151,10 @@ class Settings(BaseSettings):
     report_storage_dir: str = Field(default="data/reports")
     # Comma-separated browser origins allowed to call the API (required for split deploy).
     cors_origins: str = Field(default=_DEFAULT_CORS_ORIGINS)
+    # Optional single frontend URL (merged into CORS allowlist). Example: https://app.vercel.app
+    frontend_url: str | None = Field(default=None)
+    # Optional regex for extra origins (e.g. Vercel preview URLs: https://.*\.vercel\.app)
+    cors_origin_regex: str | None = Field(default=None)
 
     # Vision provider: "gemini" (Google Gemini Vision) or "stub" (tests/local).
     vision_provider: str = Field(default="gemini")
