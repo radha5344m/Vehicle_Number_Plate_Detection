@@ -23,10 +23,21 @@ def get_env_file_path() -> Path:
     return _ENV_FILE
 
 
+def _running_under_pytest() -> bool:
+    """True while a pytest test function is executing."""
+    return os.getenv("PYTEST_CURRENT_TEST") is not None
+
+
 def load_env_file() -> Path:
-    """Load backend/.env into os.environ without overriding explicit process env."""
+    """Load backend/.env into os.environ.
+
+    When not running under pytest, values from ``backend/.env`` override stale
+    process-level variables (e.g. ``SENTINEL_VISION_PROVIDER=stub`` left in a
+    shell session). During pytest, process env is preserved so the autouse stub
+    fixture continues to work.
+    """
     if _ENV_FILE.is_file():
-        load_dotenv(_ENV_FILE, override=False)
+        load_dotenv(_ENV_FILE, override=not _running_under_pytest())
     return _ENV_FILE
 
 

@@ -2,6 +2,8 @@
 
 import os
 
+from dotenv import dotenv_values
+
 from sentinel_anpr.application.use_cases.authentication.get_current_officer_use_case import (
     GetCurrentOfficerUseCase,
 )
@@ -266,6 +268,25 @@ def _build_vision_ai_service(
         return service
 
     if provider == "stub":
+        if settings.env.strip().lower() == "production":
+            raise RuntimeError(
+                "SENTINEL_VISION_PROVIDER=stub is not allowed when SENTINEL_ENV=production. "
+                "Set SENTINEL_VISION_PROVIDER=gemini and configure GEMINI_API_KEY."
+            )
+        if key_exists and get_env_file_path().is_file():
+            file_values = dotenv_values(get_env_file_path())
+            file_provider = (file_values.get("SENTINEL_VISION_PROVIDER") or "").strip().lower()
+            if file_provider == "gemini":
+                logger.warning(
+                    "vision_provider_stub_over_gemini_config",
+                    detail=(
+                        "Stub vision is active but backend/.env requests gemini and "
+                        "GEMINI_API_KEY is set. Restart in a fresh shell or remove "
+                        "SENTINEL_VISION_PROVIDER=stub from the process environment."
+                    ),
+                    vision_provider=provider,
+                    env_file_provider=file_provider,
+                )
         service = StubVisionService()
         logger.info(
             "vision_service_ready",

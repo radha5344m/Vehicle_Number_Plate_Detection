@@ -9,7 +9,13 @@ from sentinel_anpr.infrastructure.config.settings import (
 )
 
 
-def test_validate_vision_configuration_requires_gemini_key() -> None:
+def test_validate_vision_configuration_requires_gemini_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sentinel_anpr.infrastructure.config.settings.resolve_gemini_api_key",
+        lambda _settings=None: None,
+    )
     settings = Settings(vision_provider="gemini", gemini_api_key=None)
     with pytest.raises(MissingGeminiApiKeyError, match="GEMINI_API_KEY is not set"):
         validate_vision_configuration(settings)
