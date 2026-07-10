@@ -35,10 +35,10 @@ def _login_use_case() -> LoginUseCase:
 def test_login_success() -> None:
     use_case = _login_use_case()
     result = use_case.execute(
-        LoginCommand(identifier="off001", password="OFF001@2026")
+        LoginCommand(identifier="ap001", password="Officer@123")
     )
     assert result.token_type == "Bearer"
-    assert result.officer.badge_number == "OFF001"
+    assert result.officer.badge_number == "AP001"
     assert result.role == "POLICE_OFFICER"
     assert "vehicle_verification" in result.permissions
     assert result.access_token
@@ -48,12 +48,12 @@ def test_login_success() -> None:
 def test_login_invalid_password() -> None:
     use_case = _login_use_case()
     with pytest.raises(InvalidCredentialsError):
-        use_case.execute(LoginCommand(identifier="off001", password="wrong-password"))
+        use_case.execute(LoginCommand(identifier="ap001", password="wrong-password"))
 
 
 def test_login_with_employee_id() -> None:
     use_case = _login_use_case()
     result = use_case.execute(
-        LoginCommand(identifier="OFF001", password="OFF001@2026")
+        LoginCommand(identifier="OFF001", password="Officer@123")
     )
     assert result.officer.employee_id == "OFF001"

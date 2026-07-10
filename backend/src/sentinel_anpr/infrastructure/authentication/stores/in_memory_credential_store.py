@@ -17,8 +17,8 @@ class InMemoryCredentialStore(CredentialStorePort):
             officer_id="11111111-1111-1111-1111-111111111111",
             user_id="AP-26-02",
             employee_id="OFF001",
-            badge_number="OFF001",
-            username="off001",
+            badge_number="AP001",
+            username="ap001",
             email="ravi.kumar@sentinelanpr.ai",
             phone_number="9000000001",
             first_name="Ravi",
@@ -34,7 +34,7 @@ class InMemoryCredentialStore(CredentialStorePort):
         self._by_badge = {
             demo_officer.badge_number: StoredCredential(
                 officer=demo_officer,
-                password_hash=password_hasher.hash("OFF001@2026"),
+                password_hash=password_hasher.hash("Officer@123"),
             )
         }
         self._by_identifier = {

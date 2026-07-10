@@ -26,7 +26,7 @@ def _login(client: TestClient, identifier: str, password: str) -> dict:
 
 def test_users_requires_super_admin() -> None:
     with _client() as client:
-        officer = _login(client, "off001", "OFF001@2026")
+        officer = _login(client, "ap001", "Officer@123")
         response = client.get(
             "/v1/users",
             headers={"Authorization": f"Bearer {officer['access_token']}"},
@@ -36,7 +36,7 @@ def test_users_requires_super_admin() -> None:
 
 def test_super_admin_can_create_edit_deactivate_reset_and_filter_users() -> None:
     with _client() as client:
-        admin = _login(client, "admin001", "ADMIN001@2026")
+        admin = _login(client, "superadmin", "Admin@123")
         headers = {"Authorization": f"Bearer {admin['access_token']}"}
         token = uuid.uuid4().hex[:8]
         email = f"priya{token}@sentinelanpr.ai"
@@ -147,7 +147,7 @@ def test_super_admin_can_create_edit_deactivate_reset_and_filter_users() -> None
 
 def test_super_admin_can_create_another_super_admin_without_station() -> None:
     with _client() as client:
-        admin = _login(client, "admin001", "ADMIN001@2026")
+        admin = _login(client, "superadmin", "Admin@123")
         headers = {"Authorization": f"Bearer {admin['access_token']}"}
         token = uuid.uuid4().hex[:8]
         response = client.post(
@@ -175,7 +175,7 @@ def test_super_admin_can_create_another_super_admin_without_station() -> None:
 
 def test_user_ids_are_unique_across_multiple_creates() -> None:
     with _client() as client:
-        admin = _login(client, "admin001", "ADMIN001@2026")
+        admin = _login(client, "superadmin", "Admin@123")
         headers = {"Authorization": f"Bearer {admin['access_token']}"}
         user_ids: list[str] = []
         for index in range(2):

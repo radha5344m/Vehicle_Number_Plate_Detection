@@ -21,7 +21,7 @@ _DEFAULT_USERS: tuple[dict[str, object], ...] = (
         "user_id": "AP-26-01",
         "employee_id": "ADMIN001",
         "badge_number": "ADMIN001",
-        "username": "admin001",
+        "username": "superadmin",
         "email": "admin@sentinelanpr.ai",
         "phone_number": "9000000000",
         "first_name": "System",
@@ -33,13 +33,14 @@ _DEFAULT_USERS: tuple[dict[str, object], ...] = (
         "district": "Prakasam",
         "roles": ("super_admin",),
         "status": OfficerStatus.ACTIVE.value,
+        "demo_password": "Admin@123",
     },
     {
         "officer_id": "11111111-1111-1111-1111-111111111111",
         "user_id": "AP-26-02",
         "employee_id": "OFF001",
-        "badge_number": "OFF001",
-        "username": "off001",
+        "badge_number": "AP001",
+        "username": "ap001",
         "email": "ravi.kumar@sentinelanpr.ai",
         "phone_number": "9000000001",
         "first_name": "Ravi",
@@ -51,6 +52,7 @@ _DEFAULT_USERS: tuple[dict[str, object], ...] = (
         "district": "Prakasam",
         "roles": ("police_officer",),
         "status": OfficerStatus.ACTIVE.value,
+        "demo_password": "Officer@123",
     },
 )
 
@@ -60,7 +62,7 @@ def seed_demo_auth_users(session: Session, password_hasher: PasswordHasherPort) 
     now = datetime.now(UTC)
     for record in _DEFAULT_USERS:
         employee_id = str(record["employee_id"])
-        password = build_temporary_password(employee_id)
+        password = str(record.get("demo_password") or build_temporary_password(employee_id))
         officer_id = str(record["officer_id"])
         target_user_id = str(record["user_id"])
         existing = session.get(OfficerAuthModel, officer_id)

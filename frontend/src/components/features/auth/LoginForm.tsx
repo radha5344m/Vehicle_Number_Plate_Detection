@@ -57,8 +57,8 @@ export function LoginForm() {
         required
         value={identifier}
         onChange={(event) => setIdentifier(event.target.value)}
-        placeholder="superadmin, EMP-0001, or AP001"
-        hint="Sign in with username, employee ID, or badge number — not your email. New users must use the temporary password exactly as issued."
+        placeholder="superadmin or AP001"
+        hint="Demo accounts: superadmin / Admin@123 (Super Admin) or AP001 / Officer@123 (Police Officer)."
       />
 
       <Input

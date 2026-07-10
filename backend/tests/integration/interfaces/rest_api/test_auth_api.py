@@ -117,9 +117,9 @@ def test_login_success_with_employee_id() -> None:
     with _client() as client:
         response = client.post(
             "/v1/auth/login",
-            json={"identifier": "EMP-0001", "password": "Officer@123"},
+            json={"identifier": "OFF001", "password": "Officer@123"},
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["data"]["officer"]["employee_id"] == "EMP-0001"
+        assert body["data"]["officer"]["employee_id"] == "OFF001"
         assert body["data"]["role"] == "POLICE_OFFICER"

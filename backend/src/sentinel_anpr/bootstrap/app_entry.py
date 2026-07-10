@@ -8,6 +8,13 @@ from sentinel_anpr.interfaces.rest_api.app.create_app import create_app
 app = create_app()
 
 
+def _should_enable_reload(settings) -> bool:
+    """Disable auto-reload with SQLite — reload spawns a second process and locks the DB."""
+    if settings.env != "development":
+        return False
+    return not settings.database_url.strip().lower().startswith("sqlite")
+
+
 def main() -> None:
     """Run the API server."""
     settings = get_settings()
@@ -15,7 +22,7 @@ def main() -> None:
         "sentinel_anpr.bootstrap.app_entry:app",
         host=settings.api_host,
         port=settings.api_port,
-        reload=settings.env == "development",
+        reload=_should_enable_reload(settings),
     )
 
 

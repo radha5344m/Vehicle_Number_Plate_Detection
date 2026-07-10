@@ -30,6 +30,15 @@ python main.py
 
 Health: http://127.0.0.1:8080/v1/health
 
+### Demo login accounts
+
+| Role | Identifier | Password |
+|------|------------|----------|
+| Super Admin | `superadmin` or `ADMIN001` | `Admin@123` |
+| Police Officer | `AP001` or `ap001` | `Officer@123` |
+
+Passwords are reset to these values whenever the API starts and re-seeds demo users.
+
 ## Frontend
 
 ```bash

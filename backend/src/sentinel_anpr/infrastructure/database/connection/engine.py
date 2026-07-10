@@ -15,5 +15,12 @@ def create_db_engine(database_url: str) -> Engine:
             db_path = Path.cwd() / db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
-    return create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
+    connect_args = {"check_same_thread": False, "timeout": 30} if database_url.startswith("sqlite") else {}
+    engine = create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
+    if database_url.startswith("sqlite"):
+        from sqlalchemy import text
+
+        with engine.connect() as connection:
+            connection.execute(text("PRAGMA journal_mode=WAL"))
+            connection.commit()
+    return engine

@@ -33,7 +33,7 @@ def test_challan_routes_require_auth() -> None:
 
 def test_list_violation_master() -> None:
     with _client() as client:
-        token = _login(client, "off001", "OFF001@2026")
+        token = _login(client, "ap001", "Officer@123")
         response = client.get("/v1/challans/violations", headers=_auth_headers(token))
         assert response.status_code == 200
         items = response.json()["data"]
@@ -45,7 +45,7 @@ def test_list_violation_master() -> None:
 
 def test_issue_and_query_challan_as_officer() -> None:
     with _client() as client:
-        token = _login(client, "off001", "OFF001@2026")
+        token = _login(client, "ap001", "Officer@123")
         create_response = client.post(
             "/v1/challans",
             headers=_auth_headers(token),
@@ -84,7 +84,7 @@ def test_issue_and_query_challan_as_officer() -> None:
 
 def test_officer_cannot_delete_challan() -> None:
     with _client() as client:
-        officer_token = _login(client, "off001", "OFF001@2026")
+        officer_token = _login(client, "ap001", "Officer@123")
         create_response = client.post(
             "/v1/challans",
             headers=_auth_headers(officer_token),
@@ -106,7 +106,7 @@ def test_officer_cannot_delete_challan() -> None:
 
 def test_super_admin_can_delete_challan() -> None:
     with _client() as client:
-        officer_token = _login(client, "off001", "OFF001@2026")
+        officer_token = _login(client, "ap001", "Officer@123")
         create_response = client.post(
             "/v1/challans",
             headers=_auth_headers(officer_token),
@@ -118,7 +118,7 @@ def test_super_admin_can_delete_challan() -> None:
         )
         challan_id = create_response.json()["data"]["challan"]["id"]
 
-        admin_token = _login(client, "admin001", "ADMIN001@2026")
+        admin_token = _login(client, "superadmin", "Admin@123")
         delete_response = client.delete(
             f"/v1/challans/{challan_id}",
             headers=_auth_headers(admin_token),
@@ -128,7 +128,7 @@ def test_super_admin_can_delete_challan() -> None:
 
 def test_challan_analytics() -> None:
     with _client() as client:
-        token = _login(client, "admin001", "ADMIN001@2026")
+        token = _login(client, "superadmin", "Admin@123")
         response = client.get("/v1/challans/analytics", headers=_auth_headers(token))
         assert response.status_code == 200
         data = response.json()["data"]
