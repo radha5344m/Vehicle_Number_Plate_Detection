@@ -75,12 +75,22 @@ export function MultiRectangleSelector({
     onSelectedRegionChange(nextRegion.vehicle_id);
   };
 
+  const handleDeleteRegion = useCallback(
+    (regionId: string) => {
+      if (disabled || verifying || regions.length <= 1) return;
+      const remaining = regions.filter((region) => region.vehicle_id !== regionId);
+      const nextRegions = relabelRegions(remaining);
+      onRegionsChange(nextRegions);
+      if (selectedRegionId === regionId) {
+        onSelectedRegionChange(nextRegions[0]?.vehicle_id ?? null);
+      }
+    },
+    [disabled, verifying, onRegionsChange, onSelectedRegionChange, regions, selectedRegionId],
+  );
+
   const handleDeleteSelected = () => {
     if (disabled || verifying || !selectedRegionId || regions.length <= 1) return;
-    const remaining = regions.filter((region) => region.vehicle_id !== selectedRegionId);
-    const nextRegions = relabelRegions(remaining);
-    onRegionsChange(nextRegions);
-    onSelectedRegionChange(nextRegions[0]?.vehicle_id ?? null);
+    handleDeleteRegion(selectedRegionId);
   };
 
   const ready = containerSize.width > 0 && containerSize.height > 0;
@@ -121,11 +131,13 @@ export function MultiRectangleSelector({
                   region={region}
                   selected={selected}
                   disabled={disabled || verifying}
+                  canDelete={regions.length > 1}
                   containerWidth={containerSize.width}
                   containerHeight={containerSize.height}
                   zIndex={selected ? 20 + index : 10 + index}
                   onRegionChange={(nextRegion) => updateRegion(region.vehicle_id, nextRegion)}
                   onSelect={() => onSelectedRegionChange(region.vehicle_id)}
+                  onDelete={() => handleDeleteRegion(region.vehicle_id)}
                 />
               );
             })}

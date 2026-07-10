@@ -43,22 +43,26 @@ interface VehicleBoundingBoxProps {
   region: VehicleRegion;
   selected: boolean;
   disabled?: boolean;
+  canDelete?: boolean;
   containerWidth: number;
   containerHeight: number;
   zIndex: number;
   onRegionChange: (region: VehicleRegion) => void;
   onSelect: () => void;
+  onDelete: () => void;
 }
 
 export function VehicleBoundingBox({
   region,
   selected,
   disabled = false,
+  canDelete = false,
   containerWidth,
   containerHeight,
   zIndex,
   onRegionChange,
   onSelect,
+  onDelete,
 }: VehicleBoundingBoxProps) {
   const { x, y, width, height } = regionToPixels(region, containerWidth, containerHeight);
 
@@ -114,6 +118,26 @@ export function VehicleBoundingBox({
         event.stopPropagation();
       }}
     >
+      {canDelete && !disabled && (
+        <button
+          type="button"
+          aria-label={`Delete ${region.label}`}
+          title={`Delete ${region.label}`}
+          className="absolute left-1/2 top-0 z-30 flex h-6 w-6 -translate-x-1/2 -translate-y-[calc(100%+4px)] cursor-pointer items-center justify-center rounded-full border border-white bg-red-500 text-xs leading-none text-white shadow-md transition-colors hover:bg-red-600"
+          onMouseDown={(event) => {
+            event.stopPropagation();
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+        >
+          <span aria-hidden>❌</span>
+        </button>
+      )}
       <button
         type="button"
         disabled={disabled}
