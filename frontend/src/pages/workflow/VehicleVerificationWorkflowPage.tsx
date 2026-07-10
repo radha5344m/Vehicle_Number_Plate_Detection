@@ -18,7 +18,7 @@ import { useVehicleVerificationWorkflow } from "@/hooks/workflow/useVehicleVerif
 import { AppLayout } from "@/layouts/AppLayout";
 
 export function VehicleVerificationWorkflowPage() {
-  const { run, result, loading, error, reset } = useVehicleVerificationWorkflow();
+  const { run, result, loading, error, progressMessage, reset } = useVehicleVerificationWorkflow();
   const toast = useToast();
   const [method, setMethod] = useState<VerificationMethod | null>(null);
   const [vehicleImage, setVehicleImage] = useState<File | null>(null);
@@ -152,7 +152,13 @@ export function VehicleVerificationWorkflowPage() {
           </Card>
         )}
 
-        {loading && <AiProcessingProgress active title="Running Vision AI Investigation" />}
+        {loading && (
+          <AiProcessingProgress
+            active
+            title="Running Vision AI Investigation"
+            statusMessage={progressMessage}
+          />
+        )}
 
         {error && !loading && (
           <Alert variant="error" title="Verification Failed">

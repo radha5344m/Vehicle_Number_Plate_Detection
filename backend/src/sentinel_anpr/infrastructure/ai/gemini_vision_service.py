@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 import time
+from collections.abc import Callable
 from typing import Any
 
 from sentinel_anpr.application.ports.outbound.logging_port import LoggingPort
@@ -17,6 +18,18 @@ from sentinel_anpr.application.ports.vision_ai_service import (
     VisionAnalysisResult,
     VisionAiService,
 )
+from sentinel_anpr.infrastructure.ai.gemini_retry import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_REQUEST_TIMEOUT_MS,
+    build_model_chain,
+    format_retry_progress_message,
+    is_model_fallback_candidate,
+    is_retryable_gemini_error,
+    parse_gemini_error,
+    retry_delay_seconds,
+    transient_failure_message,
+)
+from sentinel_anpr.infrastructure.ai.vision_progress_store import update_vision_progress
 from sentinel_anpr.infrastructure.config.settings import resolve_gemini_api_key
 
 _DEFAULT_MODEL = "gemini-2.5-flash"
@@ -48,10 +61,18 @@ class GeminiVisionService(VisionAiService):
         *,
         api_key: str | None = None,
         model: str = _DEFAULT_MODEL,
+        fallback_models: list[str] | None = None,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_MS / 1000,
         client: Any | None = None,
         logger: LoggingPort | None = None,
+        sleep_fn: Callable[[float], None] | None = None,
     ) -> None:
         self._model = model or _DEFAULT_MODEL
+        self._model_chain = build_model_chain(self._model, fallback_models)
+        self._max_retries = max(0, int(max_retries))
+        self._request_timeout_ms = max(1, int(request_timeout_seconds * 1000))
+        self._sleep = sleep_fn or time.sleep
         self._logger = logger
         if api_key and str(api_key).strip():
             resolved_key = str(api_key).strip().strip('"').strip("'")
@@ -86,6 +107,7 @@ class GeminiVisionService(VisionAiService):
                 self._logger.info(
                     "gemini_vision_client_initialized",
                     model=self._model,
+                    fallback_models=self._model_chain[1:],
                 )
         except ImportError as exc:
             self._init_failure_reason = (
@@ -131,6 +153,7 @@ class GeminiVisionService(VisionAiService):
                 "gemini_vision_request_start",
                 vision_provider="gemini",
                 model=self._model,
+                model_chain=self._model_chain,
                 image_size=image_size,
                 image_bytes=len(image_bytes),
                 detail="Vision request started",
@@ -141,32 +164,40 @@ class GeminiVisionService(VisionAiService):
             from google.genai import types
 
             mime_type = self._detect_mime_type(image_bytes)
-            response = self._client.models.generate_content(
-                model=self._model,
-                contents=[
-                    types.Content(
-                        role="user",
-                        parts=[
-                            types.Part.from_text(text=_ANALYSIS_PROMPT),
-                            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                        ],
-                    )
-                ],
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    response_mime_type="application/json",
-                ),
+            contents = [
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(text=_ANALYSIS_PROMPT),
+                        types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                    ],
+                )
+            ]
+            config = types.GenerateContentConfig(
+                temperature=0.1,
+                response_mime_type="application/json",
+                http_options=types.HttpOptions(timeout=self._request_timeout_ms),
+            )
+            response = self._generate_with_resilience(
+                contents=contents,
+                config=config,
             )
         except Exception as exc:
             latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            details = parse_gemini_error(exc)
             if self._logger is not None:
                 self._logger.error(
                     "gemini_vision_request_failed",
-                    error=str(exc),
+                    status_code=details.status_code,
+                    status=details.status,
+                    error_message=details.message,
                     latency_ms=latency_ms,
                     detail="Vision request failed",
+                    final_failure_reason=details.message,
                 )
-            return self._empty(f"Vision analysis request failed: {exc}")
+            if is_retryable_gemini_error(exc):
+                return self._empty(transient_failure_message(exc))
+            return self._empty(f"Vision analysis request failed: {details.message}")
 
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
         raw_text = self._extract_output_text(response)
@@ -180,6 +211,7 @@ class GeminiVisionService(VisionAiService):
             return self._empty("Vision model returned no output.")
 
         result = self._parse(raw_text)
+        update_vision_progress("Vision analysis complete.", phase="completed")
         if self._logger is not None:
             self._logger.info(
                 "gemini_vision_request_completed",
@@ -189,6 +221,135 @@ class GeminiVisionService(VisionAiService):
                 registration_number=result.registration_number,
             )
         return result
+
+    def _generate_with_resilience(self, *, contents: Any, config: Any) -> Any:
+        last_exc: BaseException | None = None
+
+        for model_index, model_name in enumerate(self._model_chain):
+            for attempt_number in range(1, self._max_retries + 2):
+                try:
+                    response = self._client.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        config=config,
+                    )
+                    return response
+                except Exception as exc:
+                    last_exc = exc
+                    details = parse_gemini_error(exc)
+                    retry_number = attempt_number - 1
+                    is_last_attempt_for_model = attempt_number > self._max_retries
+                    can_retry = is_retryable_gemini_error(exc) and not is_last_attempt_for_model
+
+                    if self._logger is not None:
+                        self._logger.warning(
+                            "gemini_vision_request_attempt_failed",
+                            attempt_number=attempt_number,
+                            retry_number=retry_number,
+                            model=model_name,
+                            status_code=details.status_code,
+                            status=details.status,
+                            error_message=details.message,
+                            retry_delay_seconds=None
+                            if not can_retry
+                            else retry_delay_seconds(retry_number + 1),
+                            will_retry=can_retry,
+                        )
+
+                    if not is_retryable_gemini_error(exc):
+                        update_vision_progress(
+                            details.message,
+                            attempt=retry_number,
+                            max_attempts=self._max_retries,
+                            phase="failed",
+                        )
+                        if self._logger is not None:
+                            self._logger.error(
+                                "gemini_vision_request_final_failure",
+                                model=model_name,
+                                status_code=details.status_code,
+                                status=details.status,
+                                error_message=details.message,
+                                final_failure_reason=details.message,
+                            )
+                        raise
+
+                    if can_retry:
+                        if retry_number == 0:
+                            update_vision_progress(
+                                "Vision AI busy...",
+                                attempt=0,
+                                max_attempts=self._max_retries,
+                                phase="busy",
+                            )
+                        delay = retry_delay_seconds(retry_number + 1)
+                        progress_message = format_retry_progress_message(
+                            retry_number + 1,
+                            self._max_retries,
+                        )
+                        update_vision_progress(
+                            progress_message,
+                            attempt=retry_number + 1,
+                            max_attempts=self._max_retries,
+                            phase="retrying",
+                        )
+                        if self._logger is not None:
+                            self._logger.info(
+                                "gemini_vision_request_retry_scheduled",
+                                attempt_number=attempt_number,
+                                retry_number=retry_number + 1,
+                                model=model_name,
+                                status_code=details.status_code,
+                                status=details.status,
+                                error_message=details.message,
+                                retry_delay_seconds=delay,
+                            )
+                        self._sleep(delay)
+                        continue
+
+                    has_fallback_model = (
+                        is_model_fallback_candidate(exc)
+                        and model_index < len(self._model_chain) - 1
+                    )
+                    if has_fallback_model:
+                        next_model = self._model_chain[model_index + 1]
+                        if self._logger is not None:
+                            self._logger.warning(
+                                "gemini_vision_model_fallback",
+                                previous_model=model_name,
+                                next_model=next_model,
+                                status_code=details.status_code,
+                                error_message=details.message,
+                            )
+                        update_vision_progress(
+                            "Vision AI busy...",
+                            attempt=0,
+                            max_attempts=self._max_retries,
+                            phase="busy",
+                        )
+                        break
+
+                    final_reason = transient_failure_message(exc)
+                    update_vision_progress(
+                        final_reason,
+                        attempt=self._max_retries,
+                        max_attempts=self._max_retries,
+                        phase="failed",
+                    )
+                    if self._logger is not None:
+                        self._logger.error(
+                            "gemini_vision_request_final_failure",
+                            model=model_name,
+                            status_code=details.status_code,
+                            status=details.status,
+                            error_message=details.message,
+                            final_failure_reason=final_reason,
+                        )
+                    raise
+
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Gemini vision request failed without an exception.")
 
     @staticmethod
     def _image_dimensions(image_bytes: bytes) -> str | None:
@@ -260,18 +421,20 @@ class GeminiVisionService(VisionAiService):
                 lines = lines[:-1]
             cleaned = "\n".join(lines).strip()
 
-        try:
-            parsed = json.loads(cleaned)
-        except (ValueError, TypeError):
-            start = cleaned.find("{")
-            end = cleaned.rfind("}")
-            if start == -1 or end == -1 or end <= start:
-                return None
+        decoder = json.JSONDecoder()
+        for start in (0, cleaned.find("{")):
+            if start < 0:
+                continue
+            snippet = cleaned[start:]
+            if not snippet:
+                continue
             try:
-                parsed = json.loads(cleaned[start : end + 1])
-            except (ValueError, TypeError):
-                return None
-        return parsed if isinstance(parsed, dict) else None
+                parsed, _end = decoder.raw_decode(snippet)
+            except (ValueError, TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        return None
 
     @staticmethod
     def _as_str(value: Any) -> str | None:

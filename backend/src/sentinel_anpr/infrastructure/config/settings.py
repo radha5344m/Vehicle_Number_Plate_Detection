@@ -165,6 +165,12 @@ class Settings(BaseSettings):
     )
     # Bound from SENTINEL_GEMINI_MODEL (default gemini-2.5-flash).
     gemini_model: str = Field(default="gemini-2.5-flash")
+    # Comma-separated fallback models used after repeated 503 errors.
+    gemini_fallback_models: str = Field(
+        default="gemini-2.0-flash,gemini-1.5-flash",
+    )
+    gemini_max_retries: int = Field(default=5)
+    gemini_request_timeout_seconds: int = Field(default=60)
 
 
 @lru_cache

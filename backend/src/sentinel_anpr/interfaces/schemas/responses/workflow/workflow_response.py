@@ -19,6 +19,15 @@ class WorkflowStepData(BaseModel):
     duration_ms: int | None = None
 
 
+class VisionProgressData(BaseModel):
+    """Live Vision AI retry progress for a workflow request."""
+
+    message: str
+    attempt: int
+    max_attempts: int
+    phase: str
+
+
 class VerificationResultData(BaseModel):
     """Registry lookup outcome."""
 

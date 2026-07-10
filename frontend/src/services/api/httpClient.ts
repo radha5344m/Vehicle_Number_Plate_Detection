@@ -149,10 +149,15 @@ export async function deleteApiData<T>(path: string): Promise<T> {
   return envelope.data;
 }
 
-export async function postFormDataApi<T>(path: string, formData: FormData): Promise<T> {
+export async function postFormDataApi<T>(
+  path: string,
+  formData: FormData,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   const envelope = await request<ApiResponse<T>>(path, {
     method: "POST",
     body: formData,
+    headers: extraHeaders,
   });
   return envelope.data;
 }

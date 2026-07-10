@@ -11,6 +11,11 @@ from sentinel_anpr.application.use_cases.authentication.get_current_officer_use_
 from sentinel_anpr.application.use_cases.orchestration.run_vision_verification_workflow_use_case import (
     RunVisionVerificationWorkflowUseCase,
 )
+from sentinel_anpr.infrastructure.ai.vision_progress_store import (
+    bind_vision_progress,
+    clear_vision_progress,
+    get_vision_progress,
+)
 from sentinel_anpr.interfaces.rest_api.v1.dependencies.auth import require_permission
 from sentinel_anpr.interfaces.rest_api.v1.errors.error_response_builder import build_error_response
 from sentinel_anpr.interfaces.rest_api.v1.routes.vehicles.vehicle_handler import _vehicle_data
@@ -24,12 +29,56 @@ from sentinel_anpr.interfaces.schemas.responses.workflow.workflow_response impor
     RiskSignalData,
     VehicleVerificationWorkflowData,
     VerificationResultData,
+    VisionProgressData,
     WorkflowStepData,
 )
 
 router = APIRouter(prefix="/workflow", tags=["workflow"])
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+
+@router.get("/vision-progress", response_model=ApiResponse[VisionProgressData])
+async def get_vision_progress(
+    request: Request,
+    correlation_id: str | None = None,
+    principal: AuthPrincipal = Depends(require_permission("vehicle_verification")),
+) -> ApiResponse[VisionProgressData]:
+    """Return live Vision AI retry progress for a workflow correlation identifier."""
+    del principal
+    resolved_id = correlation_id or getattr(request.state, "correlation_id", None)
+    if not resolved_id:
+        return ApiResponse(
+            data=VisionProgressData(
+                message="Waiting for Vision AI...",
+                attempt=0,
+                max_attempts=5,
+                phase="idle",
+            ),
+            meta=ResponseMeta(correlation_id=None),
+        )
+
+    snapshot = get_vision_progress(resolved_id)
+    if snapshot is None:
+        return ApiResponse(
+            data=VisionProgressData(
+                message="Waiting for Vision AI...",
+                attempt=0,
+                max_attempts=5,
+                phase="idle",
+            ),
+            meta=ResponseMeta(correlation_id=resolved_id),
+        )
+
+    return ApiResponse(
+        data=VisionProgressData(
+            message=snapshot.message,
+            attempt=snapshot.attempt,
+            max_attempts=snapshot.max_attempts,
+            phase=snapshot.phase,
+        ),
+        meta=ResponseMeta(correlation_id=resolved_id),
+    )
 
 
 @router.post("/vehicle-verification", response_model=ApiResponse[VehicleVerificationWorkflowData])
@@ -51,23 +100,27 @@ async def run_vehicle_verification_workflow(
         officer_result = get_officer.execute(principal)
         officer = officer_result.officer
         correlation_id = getattr(request.state, "correlation_id", None)
+        bind_vision_progress(correlation_id)
 
         use_case: RunVisionVerificationWorkflowUseCase = (
             request.app.state.container.run_vehicle_verification_workflow_use_case
         )
-        result = use_case.execute(
-            RunVehicleVerificationWorkflowCommand(
-                officer_id=officer.officer_id,
-                officer_name=f"{officer.first_name} {officer.last_name}",
-                badge_number=officer.badge_number,
-                officer_rank=officer.rank,
-                image_bytes=image_bytes,
-                content_type=vehicle_image.content_type or "application/octet-stream",
-                original_filename=vehicle_image.filename or "vehicle.jpg",
-                location_label=location_label,
-                correlation_id=correlation_id,
+        try:
+            result = use_case.execute(
+                RunVehicleVerificationWorkflowCommand(
+                    officer_id=officer.officer_id,
+                    officer_name=f"{officer.first_name} {officer.last_name}",
+                    badge_number=officer.badge_number,
+                    officer_rank=officer.rank,
+                    image_bytes=image_bytes,
+                    content_type=vehicle_image.content_type or "application/octet-stream",
+                    original_filename=vehicle_image.filename or "vehicle.jpg",
+                    location_label=location_label,
+                    correlation_id=correlation_id,
+                )
             )
-        )
+        finally:
+            clear_vision_progress(correlation_id)
 
         attributes = None
         if result.vehicle_attributes is not None:

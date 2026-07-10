@@ -83,6 +83,7 @@ from sentinel_anpr.infrastructure.authentication.stores.sqlite_credential_store 
 )
 from sentinel_anpr.application.ports.outbound.logging_port import LoggingPort
 from sentinel_anpr.application.ports.vision_ai_service import VisionAiService
+from sentinel_anpr.infrastructure.ai.gemini_retry import parse_fallback_models
 from sentinel_anpr.infrastructure.ai.gemini_vision_service import GeminiVisionService
 from sentinel_anpr.infrastructure.ai.stub_vision_service import StubVisionService
 from sentinel_anpr.infrastructure.database.init_demo_database import initialize_demo_database
@@ -251,6 +252,9 @@ def _build_vision_ai_service(
         service = GeminiVisionService(
             api_key=api_key,
             model=gemini_model,
+            fallback_models=parse_fallback_models(settings.gemini_fallback_models),
+            max_retries=settings.gemini_max_retries,
+            request_timeout_seconds=settings.gemini_request_timeout_seconds,
             logger=logger,
         )
         logger.info(

@@ -42,6 +42,12 @@ function formatWorkflowFailureMessage(message: string | null | undefined): strin
   if (!message) return null;
   const lowered = message.toLowerCase();
   if (
+    lowered.includes("temporarily unavailable") ||
+    lowered.includes("high demand")
+  ) {
+    return "Vision AI service is temporarily unavailable due to high demand. Please try again in a few moments.";
+  }
+  if (
     lowered.includes("quota") ||
     lowered.includes("resource_exhausted") ||
     (message.includes("429") && lowered.includes("quota"))

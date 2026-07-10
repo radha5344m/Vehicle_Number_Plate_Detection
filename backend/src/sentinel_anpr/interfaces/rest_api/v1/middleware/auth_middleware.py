@@ -49,6 +49,7 @@ PROTECTED_ROUTES: set[tuple[str, str]] = {
     ("GET", "/v1/police-officer/profile"),
     ("POST", "/v1/police-officer/profile/change-password"),
     ("POST", "/v1/workflow/vehicle-verification"),
+    ("GET", "/v1/workflow/vision-progress"),
     ("GET", "/v1/challans/violations"),
     ("GET", "/v1/challans/search"),
     ("GET", "/v1/challans"),

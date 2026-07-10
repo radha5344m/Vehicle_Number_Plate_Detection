@@ -23,11 +23,13 @@ const WORKFLOW_STAGES = [
 interface AiProcessingProgressProps {
   active?: boolean;
   title?: string;
+  statusMessage?: string | null;
 }
 
 export function AiProcessingProgress({
   active = true,
   title = "Vision AI Investigation in Progress",
+  statusMessage = null,
 }: AiProcessingProgressProps) {
   const [stageIndex, setStageIndex] = useState(0);
 
@@ -50,6 +52,7 @@ export function AiProcessingProgress({
   const StageIcon = currentStage.icon;
   const overallPercent = Math.round(((stageIndex + 1) / WORKFLOW_STAGES.length) * 100);
   const currentLabel = WORKFLOW_STAGE_LABELS[currentStage.id] ?? currentStage.id;
+  const subtitle = statusMessage?.trim() || `${currentLabel}…`;
 
   return (
     <div className="animate-fade-in rounded-2xl border border-blue-200 bg-gradient-to-br from-white to-blue-50/40 p-6 shadow-soft ring-1 ring-blue-100">
@@ -60,7 +63,7 @@ export function AiProcessingProgress({
         <div>
           <p className="text-sm font-semibold text-slate-900">{title}</p>
           <p className="text-xs font-medium text-brand transition-all duration-300">
-            {currentLabel}…
+            {subtitle}
           </p>
         </div>
       </div>

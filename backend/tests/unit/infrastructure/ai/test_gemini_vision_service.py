@@ -70,6 +70,22 @@ def test_gemini_parses_valid_json_into_vision_result() -> None:
     assert any(msg == "gemini_vision_request_completed" for msg, _ in logger.infos)
 
 
+def test_gemini_handles_trailing_json_noise() -> None:
+    models = _FakeModels(
+        response_text=(
+            '{"registration_number":"AP09AB1234","vehicle_color":"white",'
+            '"vehicle_type":"car","brand":"Toyota","model":"Innova",'
+            '"confidence":0.91,"explanation":"Clear front plate"}\n}'
+        )
+    )
+    service = GeminiVisionService(client=_FakeClient(models))
+
+    result = service.analyze_vehicle_image(b"\xff\xd8\xfffake-jpeg")
+
+    assert result.registration_number == "AP09AB1234"
+    assert result.brand == "Toyota"
+
+
 def test_gemini_handles_malformed_json_gracefully() -> None:
     models = _FakeModels(response_text="not-json at all")
     service = GeminiVisionService(client=_FakeClient(models))
