@@ -24,7 +24,7 @@ secrets/
 Thumbs.db
 
 # ML artifacts and data (not versioned in foundation)
-models/
+/models/
 *.pt
 *.onnx
 *.h5
