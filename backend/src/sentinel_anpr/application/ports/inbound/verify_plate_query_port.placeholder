@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: VerifyPlateQueryPort
+# Layer: application/ports/inbound
+# Description: Driving port for plate verification queries
+# Status: Architecture frozen — await sign-off before implementation

@@ -1,0 +1,60 @@
+---
+description: Layered error handling — domain errors, application mapping, interface responses
+globs: src/sentinel_anpr/**
+alwaysApply: false
+---
+
+# Error Handling
+
+## Error Taxonomy by Layer
+
+| Layer | Error Type | Contains | Must NOT Contain |
+|-------|------------|----------|------------------|
+| Domain | `DomainError` subclasses | Business rule violations | HTTP status codes |
+| Application | Result DTO or raised app error | Maps domain → outcome | SQL details, stack traces |
+| Infrastructure | `InfrastructureError` | DB/ML/registry failures | Business decisions |
+| Interfaces | HTTP exception / envelope | Status code, safe message | Internal paths, secrets |
+
+## Domain Errors (`domain/common/exceptions/`)
+
+- One exception per business rule violation.
+- Messages stable and testable.
+- Example codes: `InvalidPlateFormatError`, `OfficerNotActiveError`.
+
+## Application Layer
+
+- Catch domain errors inside use cases; return typed result DTOs where appropriate.
+- Do not swallow exceptions silently.
+- Log at boundary with `correlation_id` — not in domain.
+
+## Interface Layer
+
+Map to API envelope from `docs/api/conventions.md`:
+
+| Domain/App Condition | HTTP | Code |
+|---------------------|------|------|
+| Validation failure | 400 | `VALIDATION_ERROR` |
+| Auth failure | 401 | `AUTH_INVALID` |
+| Permission denied | 403 | `AUTH_FORBIDDEN` |
+| Not found | 404 | `NOT_FOUND` |
+| Business rule | 422 | `UNPROCESSABLE` |
+| Registry/ML down | 503 | `SERVICE_UNAVAILABLE` |
+
+## Meaningful Errors (required)
+
+```
+# ❌ BAD
+except Exception:
+    return {"error": "something went wrong"}
+
+# ✅ GOOD
+except RegistryUnavailableError as e:
+    logger.warning("registry_unavailable", correlation_id=ctx.id, plate=plate)
+    raise ServiceUnavailableError("Vehicle registry temporarily unavailable") from e
+```
+
+## Never
+
+- Return raw stack traces to API clients in production.
+- Use generic `except Exception` without re-raise or typed mapping.
+- Put HTTP status integers in domain modules.

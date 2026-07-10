@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: DetectCloneUseCase
+# Layer: application/use_cases/clone_detection
+# Description: Score and flag cloned plates
+# Status: Architecture frozen — await sign-off before implementation

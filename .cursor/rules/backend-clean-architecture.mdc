@@ -1,0 +1,43 @@
+---
+description: Clean Architecture and hexagonal port rules for backend layers
+globs: src/sentinel_anpr/**
+alwaysApply: false
+---
+
+# Clean Architecture — Backend
+
+## Layer Responsibilities
+
+| Layer | Owns | Must NOT Own |
+|-------|------|--------------|
+| **Domain** | Business invariants, entities, VOs, domain events | I/O, HTTP, DB, ML, config |
+| **Application** | Use cases, port interfaces, DTOs | Framework code, concrete adapters |
+| **Infrastructure** | Port implementations (repos, ML, external APIs) | HTTP routing, request parsing |
+| **Interfaces** | HTTP handlers, schemas, DI wiring | Business rules, SQL, domain logic |
+
+## Ports & Adapters
+
+- Define **inbound ports** in `application/ports/inbound/`; implement in `interfaces/`.
+- Define **outbound ports** in `application/ports/outbound/`; implement in `infrastructure/`.
+- Use cases depend on outbound **abstractions**, never concrete adapters.
+
+## Use Case Pattern
+
+One use case class per user intent (e.g. `RecognizePlateUseCase`, `VerifyPlateUseCase`).
+
+```
+Handler → UseCase.execute(dto) → Domain + Outbound Ports
+```
+
+## Anti-Patterns (reject in review)
+
+- God-service combining scan + verify + risk + report.
+- Domain entity importing SQLAlchemy decorators.
+- Handler calling `infrastructure/database` directly.
+- Circular imports between bounded contexts — orchestrate in `application/use_cases/orchestration/`.
+
+## Bounded Contexts
+
+`officer` · `vehicle` · `vehicle_scan` · `plate_verification` · `risk` · `reporting` · `history` · `alerting` · `common`
+
+Cross-context logic: application orchestration or domain events — not direct entity imports across contexts.

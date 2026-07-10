@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: PlateNumber
+# Layer: domain/common/value_objects
+# Description: Normalized plate number value object
+# Status: Architecture frozen — await sign-off before implementation

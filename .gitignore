@@ -1,0 +1,53 @@
+# SentinelANPR AI — Git ignore (foundation)
+# Dependencies and virtual environments
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+secrets/
+
+# IDE and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ML artifacts and data (not versioned in foundation)
+models/
+*.pt
+*.onnx
+*.h5
+data/raw/
+data/processed/
+*.mp4
+*.avi
+
+# Logs and coverage
+logs/
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Local overrides
+config/local/
+*.local.yaml
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# SQLite data
+data/
+*.db

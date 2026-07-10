@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: Alert
+# Layer: domain/alerting/entities
+# Description: Alert entity with severity
+# Status: Architecture frozen — await sign-off before implementation

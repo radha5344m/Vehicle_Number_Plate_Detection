@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: VerificationDTO
+# Layer: application/dto
+# Description: Verification request/response shapes
+# Status: Architecture frozen — await sign-off before implementation

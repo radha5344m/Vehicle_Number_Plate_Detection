@@ -1,0 +1,46 @@
+---
+description: Domain layer purity — no frameworks, ML, or I/O
+globs: src/sentinel_anpr/domain/**
+alwaysApply: false
+---
+
+# Domain Layer Purity
+
+The domain is the innermost ring. It must remain **framework-agnostic and I/O-free**.
+
+## Forbidden Imports in `domain/`
+
+| Category | Examples |
+|----------|----------|
+| Web frameworks | `fastapi`, `starlette`, `flask`, `django` |
+| ORM / DB | `sqlalchemy`, `asyncpg`, `psycopg2`, raw SQL strings |
+| Computer vision / ML | `cv2` (OpenCV), `paddleocr`, `ultralytics`, `torch`, `onnxruntime` |
+| HTTP clients | `httpx`, `requests`, `aiohttp` |
+| Config / env | `os.environ`, `pydantic_settings` (use ports in application layer) |
+| Infrastructure | Any import from `infrastructure/`, `interfaces/` |
+
+## Allowed
+
+- Python standard library (pure: `dataclasses`, `enum`, `datetime`, `uuid`, `typing`)
+- Other `domain/` modules (prefer `domain/common/` shared kernel — keep it small)
+- `application/` — **never** (dependency points inward only)
+
+## Domain Artifacts
+
+| Type | Location | Example |
+|------|----------|---------|
+| Entity | `entities/` | `Capture`, `VerificationOutcome` |
+| Value object | `value_objects/` | `PlateNumber`, `ConfidenceScore` |
+| Domain service | `services/` | `CloneDetectionPolicy`, `DecisionPolicy` |
+| Domain exception | `exceptions/` | `InvalidPlateFormatError` |
+| Domain event | `events/` | `PlateVerified`, `CloneSuspected` |
+
+## PlateNumber Example (conceptual)
+
+Normalization rules (strip spaces, uppercase, jurisdiction format) live in `PlateNumber` VO — not in OCR adapter or HTTP handler.
+
+## Review Checklist
+
+- [ ] No `import` from outer layers
+- [ ] No file I/O, network, or database calls
+- [ ] Business rules testable with zero mocks

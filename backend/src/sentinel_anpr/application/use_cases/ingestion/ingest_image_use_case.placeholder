@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: IngestImageUseCase
+# Layer: application/use_cases/ingestion
+# Description: Validate and accept incoming image capture
+# Status: Architecture frozen — await sign-off before implementation

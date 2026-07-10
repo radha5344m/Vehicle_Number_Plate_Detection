@@ -1,0 +1,7 @@
+# Development overrides — skeleton only
+
+app:
+  log_level: DEBUG
+
+server:
+  port: 8080

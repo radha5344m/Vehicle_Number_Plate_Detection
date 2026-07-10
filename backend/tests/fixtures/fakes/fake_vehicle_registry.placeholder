@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: fake_vehicle_registry
+# Layer: tests/fixtures/fakes
+# Description: In-memory VehicleRegistryPort fake
+# Status: Architecture frozen — await sign-off before implementation

@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: ConfigPort
+# Layer: application/ports/outbound
+# Description: Typed configuration access
+# Status: Architecture frozen — await sign-off before implementation

@@ -1,0 +1,50 @@
+---
+description: React frontend — services in hooks, no API calls in components
+globs: frontend/**
+alwaysApply: false
+---
+
+# Frontend Architecture (React + TypeScript + Tailwind)
+
+## Layer Rules
+
+| Layer | Responsibility | Forbidden |
+|-------|----------------|-----------|
+| `pages/` | Compose features; wire hooks | Direct `fetch`, business logic |
+| `components/features/` | Domain UI; props in, events out | Import from `services/` |
+| `hooks/` | Bind services; loading/error state | JSX return |
+| `services/` | HTTP calls; type mapping | React imports, component state |
+| `stores/` | Auth session, UI prefs only | Duplicate API list cache |
+
+## Data Fetching
+
+- Server state: **TanStack Query** in hooks — not Zustand.
+- Client state: **Zustand** (`authStore`, `uiStore`) only.
+- API types mirror `docs/api/` in `types/api/`.
+
+## Components
+
+- UI primitives (`components/ui/`) — stateless, no API awareness.
+- One component per folder with `index.ts` barrel export.
+- Pages stay thin — extract markup to feature components.
+
+## Services
+
+- All HTTP via `services/api/httpClient.ts` with auth interceptor.
+- One service file per API area (`scanService.ts`, `dashboardService.ts`).
+- Unwrap `{ success, data, meta }` envelope from API conventions.
+
+## Auth
+
+- Tokens in `sessionStorage` via `authStore` — never in component local state.
+- Route guards: `AuthGuard`, `RoleGuard` in `routes/guards/`.
+
+## Styling
+
+- Tailwind only — design tokens in `tailwind.config.ts`.
+- No inline styles except dynamic values.
+
+## Tests (_when added_)
+
+- Hook tests with mocked services.
+- Component tests with React Testing Library — no real API calls.

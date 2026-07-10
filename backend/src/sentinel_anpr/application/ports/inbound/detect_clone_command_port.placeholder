@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: DetectCloneCommandPort
+# Layer: application/ports/inbound
+# Description: Driving port for clone detection commands
+# Status: Architecture frozen — await sign-off before implementation

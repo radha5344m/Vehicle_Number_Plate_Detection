@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: AlertPublisherPort
+# Layer: application/ports/outbound
+# Description: Publish alerts and domain events
+# Status: Architecture frozen — await sign-off before implementation

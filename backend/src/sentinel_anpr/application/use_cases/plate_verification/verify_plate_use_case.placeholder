@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: VerifyPlateUseCase
+# Layer: application/use_cases/plate_verification
+# Description: Verify plate against registry
+# Status: Architecture frozen — await sign-off before implementation

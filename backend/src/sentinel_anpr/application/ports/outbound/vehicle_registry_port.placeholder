@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: VehicleRegistryPort
+# Layer: application/ports/outbound
+# Description: Official vehicle registry lookup
+# Status: Architecture frozen — await sign-off before implementation

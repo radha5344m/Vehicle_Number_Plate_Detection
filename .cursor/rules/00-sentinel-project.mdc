@@ -1,0 +1,43 @@
+---
+description: SentinelANPR AI project context and non-negotiable architecture principles
+alwaysApply: true
+---
+
+# SentinelANPR AI — Project Rules
+
+Production ANPR system: plate detection, OCR, verification, clone/risk scoring, reports.
+
+## Layer Map (`src/sentinel_anpr/`)
+
+| Layer | Path | Role |
+|-------|------|------|
+| Domain | `domain/` | Entities, VOs, domain services, policies — **pure business rules** |
+| Application | `application/` | Use cases, ports, DTOs — **orchestration only** |
+| Infrastructure | `infrastructure/` | DB, ML (YOLO/PaddleOCR), PDF, auth, logging |
+| Interfaces | `interfaces/` | REST API, schemas, dependency injection wiring |
+
+Frontend: `frontend/` (React + TypeScript + Tailwind). Docs: `docs/`.
+
+## Dependency Direction (mandatory)
+
+```
+interfaces → application → domain
+infrastructure → application → domain
+domain → (nothing external)
+```
+
+- Never import `infrastructure` or `interfaces` from `domain` or `application`.
+- Only the **composition root** (`bootstrap/`, `interfaces/dependency_injection/`) wires concrete classes.
+
+## Before Writing Code
+
+1. Match the frozen docs in `docs/architecture/`, `docs/api/`, `docs/database/`.
+2. Add/update ports before implementations.
+3. Mirror tests under `tests/` for every new module.
+
+## Never
+
+- Put business rules in route handlers or ORM models.
+- Import FastAPI, SQLAlchemy, OpenCV, PaddleOCR, or YOLO in `domain/`.
+- Execute SQL or raw queries in `interfaces/`.
+- Hardcode secrets or environment-specific URLs in source files.

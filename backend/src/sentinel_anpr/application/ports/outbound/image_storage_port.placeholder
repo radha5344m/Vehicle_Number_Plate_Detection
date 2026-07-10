@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: ImageStoragePort
+# Layer: application/ports/outbound
+# Description: Store and retrieve raw images
+# Status: Architecture frozen — await sign-off before implementation

@@ -1,0 +1,11 @@
+# SentinelANPR AI — Default Configuration Skeleton
+# Status: Not loaded — no config loader implemented yet
+# Override in config/development/, config/staging/, or config/production/
+
+app:
+  name: sentinel-anpr-ai
+  log_level: INFO
+
+server:
+  host: "0.0.0.0"
+  port: 8080

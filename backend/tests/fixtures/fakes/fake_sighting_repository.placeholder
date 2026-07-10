@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: fake_sighting_repository
+# Layer: tests/fixtures/fakes
+# Description: In-memory SightingRepositoryPort fake
+# Status: Architecture frozen — await sign-off before implementation

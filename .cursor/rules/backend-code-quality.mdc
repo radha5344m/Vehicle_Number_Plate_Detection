@@ -1,0 +1,68 @@
+---
+description: One responsibility per file, small functions, and testability standards
+globs: src/sentinel_anpr/**,tests/**
+alwaysApply: false
+---
+
+# Code Quality & Testability
+
+## One Responsibility Per File
+
+| File contains | One of |
+|---------------|--------|
+| `verify_plate_use_case.py` | Single use case class |
+| `plate_number.py` | Single value object |
+| `sighting_repository.py` | Single repository implementation |
+| `verify_plate_handler.py` | Single route handler group |
+
+Split when a file exceeds ~150 lines or handles multiple reasons to change.
+
+## Small Functions
+
+- Target **≤ 25 lines** per function; extract helpers when logic branches grow.
+- Use cases: `execute()` orchestrates; delegate to private methods or domain services.
+- No function should do I/O **and** business rule evaluation **and** response mapping.
+
+```
+# ✅ GOOD
+async def execute(self, command: VerifyCommand) -> VerifyResult:
+    plate = PlateNumber.normalize(command.plate_text)
+    vehicle = await self._registry.find_by_plate(plate)
+    return self._policy.evaluate(plate, vehicle)
+```
+
+## Naming
+
+| Artifact | Convention |
+|----------|------------|
+| Use case | `{Verb}{Noun}UseCase` |
+| Port | `{Noun}Port` |
+| Handler | `{resource}_handler.py` |
+| Test | `test_{module}.py` |
+
+## Testability Requirements
+
+| Layer | Test With |
+|-------|-----------|
+| Domain | Pure unit tests — no mocks |
+| Application | Fake outbound ports |
+| Infrastructure | Integration tests — test DB, fixtures |
+| Interfaces | Contract tests — mock use cases |
+
+Every new use case → `tests/unit/application/`.  
+Every new domain service → `tests/unit/domain/`.
+
+## Test Rules
+
+- Tests must be deterministic — no real network or GPU in unit tests.
+- Fixture images: `tests/fixtures/data/images/`.
+- Fake ports: `tests/fixtures/fakes/`.
+- Mirror `src/sentinel_anpr/` structure under `tests/`.
+
+## PR Checklist
+
+- [ ] Single responsibility per new file
+- [ ] Functions small and named by intent
+- [ ] Unit tests for domain/application changes
+- [ ] No domain imports from outer layers
+- [ ] Ports defined before adapter implementations

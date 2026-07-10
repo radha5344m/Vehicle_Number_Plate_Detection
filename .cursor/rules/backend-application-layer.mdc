@@ -1,0 +1,52 @@
+---
+description: Application layer — use cases orchestrate domain via ports only
+globs: src/sentinel_anpr/application/**
+alwaysApply: false
+---
+
+# Application Layer
+
+Coordinates business logic. No framework or I/O code.
+
+## Structure
+
+| Path | Contents |
+|------|----------|
+| `ports/inbound/` | Driving port interfaces |
+| `ports/outbound/` | Driven port interfaces |
+| `use_cases/{context}/` | One use case per intent |
+| `dto/` | Request/response crossing boundaries |
+| `mappers/` | Domain entity ↔ DTO (no ORM models) |
+
+## Use Case Rules
+
+- Depend on `domain/` and outbound **port abstractions** only.
+- Never import `infrastructure/` or `interfaces/`.
+- Inject ports via constructor; no `new ConcreteRepository()` inside use cases.
+- `execute()` accepts a command/query DTO; returns result DTO or raises domain error.
+
+## Orchestration
+
+`use_cases/orchestration/ProcessPlatePipelineUseCase` sequences pipeline stages — individual stage logic stays in dedicated use cases or domain services.
+
+## DTOs vs Domain
+
+| DTO | Domain |
+|-----|--------|
+| API/use-case boundaries | Business rules |
+| Serializable, flat | Rich behavior |
+| In `application/dto/` | In `domain/` |
+
+Convert at use case boundary: `PlateNumber.from_string(dto.plate_text)`.
+
+## Port Segregation
+
+Small, focused ports — not a monolithic `AIServicePort`:
+
+- `PlateDetectionPort`, `OcrPort`, `VehicleRegistryPort`, `SightingRepositoryPort`
+
+## Review Checklist
+
+- [ ] No SQLAlchemy, FastAPI, cv2, paddleocr imports
+- [ ] No HTTP or file I/O
+- [ ] Each use case file = one class, one responsibility

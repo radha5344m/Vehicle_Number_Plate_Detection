@@ -1,0 +1,52 @@
+---
+description: REST interface rules — thin handlers, no SQL, no business logic
+globs: src/sentinel_anpr/interfaces/**
+alwaysApply: false
+---
+
+# Interfaces Layer (REST API)
+
+Driving adapters only. Handlers translate HTTP ↔ application DTOs.
+
+## Handler Responsibilities (allowed)
+
+- Parse and validate request schemas (`interfaces/schemas/`)
+- Map schema → application DTO
+- Call **one** use case or inbound port
+- Map result DTO → response schema + HTTP status
+- Delegate auth to middleware; never implement auth logic inline
+
+## Forbidden in Handlers / Routes
+
+| Forbidden | Why | Correct Layer |
+|-----------|-----|---------------|
+| Business rules (verification, risk scoring) | SRP | `domain/`, `application/use_cases/` |
+| SQL or ORM queries | Separation | `infrastructure/database/repositories/` |
+| `session.execute()`, raw SQL strings | No SQL in routes | Repository implementing port |
+| Direct ML calls (YOLO, PaddleOCR) | Adapter boundary | `infrastructure/ai/`, `infrastructure/ocr/` |
+| Registry HTTP calls | Port abstraction | `infrastructure/external/` |
+| Instantiating concrete repos/ML adapters | DI | `interfaces/dependency_injection/` |
+
+## Thin Controller Pattern
+
+```
+# ✅ GOOD — handler
+async def verify_plate(body: VerifyPlateRequest, use_case: VerifyPlateUseCase = Depends(...)):
+    result = await use_case.execute(body.to_dto())
+    return VerifyPlateResponse.from_dto(result)
+
+# ❌ BAD — business logic + SQL in handler
+async def verify_plate(plate: str, db: Session = Depends(...)):
+    row = db.execute("SELECT * FROM vehicles WHERE plate = :p", {"p": plate})
+    if row.color != request.color: ...
+```
+
+## Schemas (`interfaces/schemas/`)
+
+- Request/response shapes only — no domain logic.
+- Validation: syntactic (types, lengths, formats). Semantic rules → domain.
+- Align with `docs/api/*.md` contracts.
+
+## Middleware (`interfaces/rest_api/v1/middleware/`)
+
+Auth, correlation ID, logging context — cross-cutting only.

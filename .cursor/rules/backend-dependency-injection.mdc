@@ -1,0 +1,51 @@
+---
+description: Dependency injection and composition root rules
+globs: src/sentinel_anpr/{bootstrap,interfaces/dependency_injection}/**
+alwaysApply: false
+---
+
+# Dependency Injection
+
+## Composition Root
+
+**Only** these locations may instantiate concrete infrastructure classes:
+
+- `src/sentinel_anpr/bootstrap/`
+- `src/sentinel_anpr/interfaces/dependency_injection/`
+
+All other modules receive dependencies via constructor injection or framework `Depends()` resolved from the container.
+
+## Wiring Rules
+
+| Module | Receives | Via |
+|--------|----------|-----|
+| Use case | Outbound port implementations | Constructor `__init__(self, repo: SightingRepositoryPort)` |
+| HTTP handler | Use case / inbound port | DI provider |
+| Repository | DB session, config | Constructor (infra only) |
+| ML adapter | Model path, thresholds | `ConfigurationPort` |
+
+## Provider Layout
+
+```
+interfaces/dependency_injection/
+├── containers/     # App container definition
+├── providers/      # Factory functions per port
+└── wiring/         # Bind interface → implementation
+```
+
+## Rules
+
+- Handlers must not call `YoloPlateDetector()` or `Session()` directly — inject ports.
+- Use cases must not import from `infrastructure/` — only port protocols.
+- Prefer constructor injection over service locators and global singletons.
+- One provider module per outbound port family (e.g. `persistence_providers.py`).
+
+## Testing
+
+- Unit-test use cases with **fake port implementations** from `tests/fixtures/fakes/`.
+- Integration tests swap real adapters via test container overrides.
+- Never patch concrete classes inside domain tests.
+
+## Framework DI (when implemented)
+
+Record framework choice in `docs/adr/`. FastAPI `Depends()` is allowed **only** in `interfaces/` — wired to application abstractions.

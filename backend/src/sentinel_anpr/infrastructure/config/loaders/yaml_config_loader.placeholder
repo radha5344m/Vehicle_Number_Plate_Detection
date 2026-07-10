@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: YamlConfigLoader
+# Layer: infrastructure/config
+# Description: ConfigPort YAML loader
+# Status: Architecture frozen — await sign-off before implementation

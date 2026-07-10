@@ -1,0 +1,45 @@
+---
+description: Infrastructure layer — adapters implement ports; ML and persistence live here
+globs: src/sentinel_anpr/infrastructure/**
+alwaysApply: false
+---
+
+# Infrastructure Layer
+
+Driven adapters. Implements outbound ports defined in `application/ports/outbound/`.
+
+## Subpackages
+
+| Path | Implements | Technology (_ADR_) |
+|------|------------|-------------------|
+| `database/` | Repository ports | SQLAlchemy — models stay here, not in domain |
+| `ai/yolo/` | `PlateDetectionPort` | YOLO |
+| `ocr/paddleocr/` | `OcrPort` | PaddleOCR |
+| `pdf/` | `PdfGeneratorPort` | PDF library TBD |
+| `authentication/` | Auth providers | JWT |
+| `logging/` | `LoggingPort` | Structured logging |
+| `external/vehicle_registry/` | `VehicleRegistryPort` | HTTP client |
+| `config/loaders/` | `ConfigurationPort` | YAML + env |
+
+## Rules
+
+- Implement **one port per adapter class** (or cohesive port group).
+- Map ORM models ↔ domain entities in `database/mappers/` — never expose ORM to application.
+- OpenCV usage allowed **only** in `infrastructure/` (e.g. OCR preprocessor) — never `domain/`.
+- Catch vendor exceptions; wrap in `InfrastructureError` with safe messages.
+
+## SQL
+
+- All SQL/ORM queries live in `infrastructure/database/repositories/`.
+- Repositories implement port interfaces — no query logic in use cases or handlers.
+
+## ML Pipelines
+
+- `infrastructure/ai/pipelines/` wires detector + recognizer for Vehicle Scan module.
+- Return DTOs matching `docs/ai-pipeline/pipeline-interfaces.md` contracts.
+- Include `model_version` on every inference result.
+
+## Must NOT
+
+- Import from `interfaces/` (handlers).
+- Contain business rules (risk thresholds → `domain/risk/`).

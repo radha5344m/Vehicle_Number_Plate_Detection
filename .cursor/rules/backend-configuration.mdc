@@ -1,0 +1,46 @@
+---
+description: Configuration via environment variables and ConfigPort — no hardcoded secrets
+globs: src/sentinel_anpr/**,config/**
+alwaysApply: false
+---
+
+# Configuration Management
+
+## Principles
+
+1. **12-factor**: Config from environment; secrets never in source or git.
+2. **Layered files**: `config/default/` → `config/{env}/` → env vars → `config/local/` (gitignored).
+3. **Typed access**: Application reads settings via `ConfigurationPort` — not `os.environ` in domain/application.
+4. **Fail fast**: Missing required settings raise at startup, not on first request.
+
+## Environment Variables
+
+- Document all keys in `.env.example` (names only, no values).
+- Load in `infrastructure/config/loaders/` only.
+- Prefix: `SENTINEL_` (e.g. `SENTINEL_DATABASE_URL`, `SENTINEL_REGISTRY_API_URL`).
+
+## Forbidden
+
+| Pattern | Why |
+|---------|-----|
+| Hardcoded API keys, passwords, JWT secrets | Security |
+| `os.getenv()` in `domain/` or `application/` | Layer violation |
+| Environment-specific URLs in Python source | Use config layers |
+| Committing `.env` or `config/local/` | Gitignored |
+
+## Config Sections
+
+`app` · `database` · `ml` · `ocr` · `auth` · `logging` — see `config/default/*.yaml`.
+
+## ML / OCR Settings
+
+Model paths and thresholds from config — never hardcoded in domain or use cases:
+
+```
+# ✅ infrastructure/ml/ reads via ConfigurationPort
+detector.model_path = config.get("ml.detector.model_path")
+```
+
+## Frontend
+
+Use `VITE_*` env vars in `frontend/config/env.ts` only — not scattered in components.

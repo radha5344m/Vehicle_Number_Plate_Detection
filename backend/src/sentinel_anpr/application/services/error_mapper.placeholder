@@ -1,0 +1,5 @@
+# PLACEHOLDER — Not implemented
+# Module: ErrorMapper
+# Layer: application/services
+# Description: Map domain exceptions to application result DTOs
+# Status: Architecture frozen — await sign-off before implementation

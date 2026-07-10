@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: SightingRepositoryPort
+# Layer: application/ports/outbound
+# Description: Persist and query plate sightings
+# Status: Architecture frozen — await sign-off before implementation

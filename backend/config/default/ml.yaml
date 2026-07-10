@@ -1,0 +1,10 @@
+# SentinelANPR AI — ML Configuration Skeleton
+# Model paths and thresholds — values TBD at implementation
+
+ml:
+  detector:
+    model_path: null
+    confidence_threshold: 0.5
+  recognizer:
+    model_path: null
+    confidence_threshold: 0.7

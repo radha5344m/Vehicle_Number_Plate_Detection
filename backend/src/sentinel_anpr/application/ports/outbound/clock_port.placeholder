@@ -1,0 +1,5 @@
+﻿# PLACEHOLDER — Not implemented
+# Module: ClockPort
+# Layer: application/ports/outbound
+# Description: Testable time abstraction
+# Status: Architecture frozen — await sign-off before implementation
