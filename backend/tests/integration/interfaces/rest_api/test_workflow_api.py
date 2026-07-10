@@ -25,7 +25,7 @@ def _vehicle_image_bytes() -> bytes:
 def _login_token(client: TestClient) -> str:
     response = client.post(
         "/v1/auth/login",
-        json={"badge_number": "AP001", "password": "Officer@123"},
+        json={"identifier": "AP001", "password": "Officer@123"},
     )
     return response.json()["data"]["access_token"]
 
@@ -39,7 +39,7 @@ def test_vehicle_verification_workflow_requires_auth() -> None:
         assert response.status_code == 401
 
 
-def test_vehicle_verification_workflow_completes() -> None:
+def test_vehicle_verification_workflow_completes_synchronously() -> None:
     with _client() as client:
         token = _login_token(client)
         response = client.post(
@@ -54,5 +54,6 @@ def test_vehicle_verification_workflow_completes() -> None:
         assert data["registration_number"] == "AP09AB1234"
         assert data["scan_id"]
         assert data["report_id"]
+        assert data["report_download_url"]
         assert data["risk_level"] in {"low", "medium", "high", "critical"}
         assert len(data["steps"]) >= 6

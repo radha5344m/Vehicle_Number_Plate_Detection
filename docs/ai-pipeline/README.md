@@ -13,7 +13,7 @@ Define the end-to-end **ANPR intelligence pipeline** from raw vehicle image to i
 
 ## Pipeline Overview (current runtime)
 
-The verification workflow uses a single **Vision AI** stage (Google Gemini by default) instead of separate YOLO + OCR adapters.
+The verification workflow uses a single **Vision AI** stage (Hugging Face Inference API by default) instead of separate YOLO + OCR adapters.
 
 ```
 ┌─────────────────┐
@@ -22,7 +22,7 @@ The verification workflow uses a single **Vision AI** stage (Google Gemini by de
          │
          ▼
 ┌─────────────────┐
-│   Vision AI     │  Gemini (or stub) — plate + attributes
+│   Vision AI     │  Hugging Face (or stub) — plate + attributes
 └────────┬────────┘
          │ registration_number, confidence, attributes
          ▼
@@ -40,7 +40,7 @@ The verification workflow uses a single **Vision AI** stage (Google Gemini by de
 └─────────────────┘
 ```
 
-**Configuration:** `SENTINEL_VISION_PROVIDER=gemini`, `GEMINI_API_KEY`, `SENTINEL_GEMINI_MODEL=gemini-2.5-flash`.  
+**Configuration:** `SENTINEL_VISION_PROVIDER=huggingface`, `HF_TOKEN`, `HF_MODEL`, `HF_API_URL`.  
 See [configuration-strategy.md](../architecture/configuration-strategy.md). Historical stage specs below still describe the earlier YOLO/OCR design for reference.
 
 ---
@@ -73,7 +73,7 @@ See [configuration-strategy.md](../architecture/configuration-strategy.md). Hist
 | Stage | Layer | Module |
 |-------|-------|--------|
 | Vehicle Image | Application + Domain | Vehicle Scan / upload |
-| Vision AI | Infrastructure | `GeminiVisionService` / stub (`VisionAiService` port) |
+| Vision AI | Infrastructure | `HuggingFaceVisionService` / stub (`VisionAiService` port) |
 | Vehicle Lookup | Application + Infrastructure | Vehicle verification |
 | Risk Engine | Domain + Application | Risk Engine |
 | Investigation Report | Application + Infrastructure | Reports |

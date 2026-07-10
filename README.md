@@ -95,12 +95,13 @@ See [docs/architecture/dependency-direction.md](docs/architecture/dependency-dir
 
 ## Environment (Vision AI)
 
-Copy `backend/.env.example` → `backend/.env`. Vision uses **Google Gemini** (not OpenAI):
+Copy `backend/.env.example` → `backend/.env`. Vision uses the **Hugging Face Inference API**:
 
 ```env
-SENTINEL_VISION_PROVIDER=gemini
-GEMINI_API_KEY=
-SENTINEL_GEMINI_MODEL=gemini-2.5-flash
+SENTINEL_VISION_PROVIDER=huggingface
+HF_TOKEN=
+HF_MODEL=HuggingFaceTB/SmolVLM2-2B-Instruct
+HF_API_URL=https://router.huggingface.co/v1/chat/completions
 ```
 
 Local without a cloud key: `SENTINEL_VISION_PROVIDER=stub`. See [getting-started](docs/development/getting-started.md).

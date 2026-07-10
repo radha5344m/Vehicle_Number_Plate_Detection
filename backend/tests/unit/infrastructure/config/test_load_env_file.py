@@ -21,7 +21,7 @@ def test_load_env_file_overrides_stale_process_env_outside_pytest(
     load_env_file()
     settings = get_settings()
 
-    assert settings.vision_provider.strip().lower() == "gemini"
+    assert settings.vision_provider.strip().lower() == "huggingface"
 
 
 def test_load_env_file_preserves_pytest_stub_override(

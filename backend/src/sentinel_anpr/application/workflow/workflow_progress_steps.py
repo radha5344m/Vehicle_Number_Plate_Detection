@@ -1,0 +1,11 @@
+"""Human-readable workflow progress step labels for async investigations."""
+
+STEP_UPLOADING = "Uploading"
+STEP_STARTING_VISION = "Starting Vision"
+STEP_ANALYZING_IMAGE = "Analyzing Image"
+STEP_READING_PLATE = "Reading Plate"
+STEP_VEHICLE_RECOGNITION = "Vehicle Recognition"
+STEP_REGISTRY_LOOKUP = "Registry Lookup"
+STEP_RISK_ASSESSMENT = "Risk Assessment"
+STEP_GENERATING_REPORT = "Generating Report"
+STEP_COMPLETED = "Completed"

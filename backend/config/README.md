@@ -31,7 +31,7 @@ Environment-specific configuration for SentinelANPR AI.
 | `default/app.yaml` | App name, log level |
 | `default/ml.yaml` | Model paths, thresholds |
 | `development/app.yaml` | Dev-specific overrides |
-| `../.env.example` | Required env vars (Gemini vision: `GEMINI_API_KEY`, etc.) |
+| `../.env.example` | Required env vars (Hugging Face vision: `HF_TOKEN`, etc.) |
 
 ---
 

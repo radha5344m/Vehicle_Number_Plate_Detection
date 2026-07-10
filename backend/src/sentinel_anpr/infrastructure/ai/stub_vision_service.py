@@ -1,7 +1,7 @@
 """Deterministic stub VisionAiService for local development and tests.
 
 Returns a fixed :class:`VisionAnalysisResult` so the vehicle-verification
-pipeline runs end-to-end without a Gemini API key or network access. Selected
+pipeline runs end-to-end without a Hugging Face token or network access. Selected
 via ``SENTINEL_VISION_PROVIDER=stub``.
 """
 

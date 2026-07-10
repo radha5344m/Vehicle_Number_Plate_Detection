@@ -13,11 +13,15 @@ services:
       - key: SENTINEL_ENV
         value: production
       - key: SENTINEL_VISION_PROVIDER
-        value: gemini
+        value: huggingface
       - key: SENTINEL_DATABASE_URL
         value: sqlite:///./data/sentinel_anpr.db
-      - key: GEMINI_API_KEY
+      - key: HF_TOKEN
         sync: false
+      - key: HF_MODEL
+        value: google/gemma-3-4b-it:deepinfra
+      - key: HF_API_URL
+        value: https://router.huggingface.co/v1/chat/completions
       - key: SENTINEL_AUTH_JWT_SECRET
         generateValue: true
       - key: SENTINEL_CORS_ORIGINS

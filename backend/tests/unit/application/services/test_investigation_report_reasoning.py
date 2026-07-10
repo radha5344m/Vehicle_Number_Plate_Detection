@@ -40,7 +40,7 @@ def test_compose_reasoning_uses_investigation_outputs() -> None:
         recommendation="Conduct secondary physical verification.",
         vision_analysis=VisionAnalysisDto(
             registration_number="AP09AB1234",
-            brand="Toyota",
+            brand="Honda",
             model="Innova",
             color="white",
             vehicle_type="car",
@@ -83,8 +83,11 @@ def test_compose_reasoning_uses_investigation_outputs() -> None:
 
     assert "AP09AB1234" in text
     assert "91%" in text or "0.91" in text or "91" in text
+    assert "Vision AI observed vehicle characteristics: brand Honda" in text
+    assert "color white" in text
     assert "Registry verification located" in text
     assert "match rate" in text.lower()
-    assert "Brand mismatch" in text or "brand" in text.lower()
+    assert "vision 'Honda'" in text
+    assert "registered 'Toyota'" in text
     assert "MEDIUM" in text
     assert "Conduct secondary physical verification." in text

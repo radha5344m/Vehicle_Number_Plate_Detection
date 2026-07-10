@@ -6,7 +6,7 @@ vision model drives the vehicle-repository lookup and verification, and the
 color/type/brand it reports feed attribute comparison and the risk engine.
 
 The application layer depends only on the ``VisionAiService`` port; it is
-unaware of the concrete implementation (Gemini, stub, etc.). Repositories and
+unaware of the concrete implementation (Hugging Face, stub, etc.). Repositories and
 domain entities are reused unchanged.
 """
 
@@ -16,7 +16,11 @@ import uuid
 from datetime import UTC, datetime
 
 from sentinel_anpr.application.dto.attribute_dto import VehicleAttributesResult
-from sentinel_anpr.application.dto.history_dto import SaveCompletedScanCommand
+from sentinel_anpr.application.dto.history_dto import (
+    RegistryScanSnapshot,
+    SaveCompletedScanCommand,
+    VisionScanSnapshot,
+)
 from sentinel_anpr.application.dto.persistence_dto import (
     PersistWorkflowOutcomeCommand,
     SaveDashboardSnapshotCommand,
@@ -48,6 +52,7 @@ from sentinel_anpr.application.dto.workflow_dto import (
     WorkflowStepLog,
 )
 from sentinel_anpr.application.ports.outbound.logging_port import LoggingPort
+from sentinel_anpr.application.ports.outbound.workflow_progress_port import WorkflowProgressPort
 from sentinel_anpr.application.ports.vision_ai_service import (
     VisionAiService,
     VisionAnalysisResult,
@@ -65,6 +70,16 @@ from sentinel_anpr.application.use_cases.risk.assess_risk_use_case import Assess
 from sentinel_anpr.application.use_cases.vehicle.lookup_vehicle_use_case import LookupVehicleUseCase
 from sentinel_anpr.application.use_cases.challans.challan_use_cases import (
     LookupChallansByRegistrationUseCase,
+)
+from sentinel_anpr.application.workflow.workflow_progress_steps import (
+    STEP_ANALYZING_IMAGE,
+    STEP_GENERATING_REPORT,
+    STEP_READING_PLATE,
+    STEP_REGISTRY_LOOKUP,
+    STEP_RISK_ASSESSMENT,
+    STEP_STARTING_VISION,
+    STEP_UPLOADING,
+    STEP_VEHICLE_RECOGNITION,
 )
 from sentinel_anpr.domain.common.value_objects.plate_text_normalizer import (
     normalize_registration_number,
@@ -101,6 +116,7 @@ class RunVisionVerificationWorkflowUseCase:
         generate_investigation_report_use_case: GenerateInvestigationReportUseCase,
         lookup_challans_use_case: LookupChallansByRegistrationUseCase,
         logger: LoggingPort,
+        workflow_progress: WorkflowProgressPort | None = None,
     ) -> None:
         self._upload = upload_vehicle_image_use_case
         self._vision = vision_ai_service
@@ -110,6 +126,7 @@ class RunVisionVerificationWorkflowUseCase:
         self._persist_outcome = persist_workflow_outcome_use_case
         self._generate_report = generate_investigation_report_use_case
         self._logger = logger
+        self._workflow_progress = workflow_progress
         self._attribute_comparison = AttributeComparisonPolicy()
         self._investigation_summary = InvestigationSummaryPolicy()
 
@@ -136,6 +153,12 @@ class RunVisionVerificationWorkflowUseCase:
             workflow_id=workflow_id,
             image_bytes=len(image_bytes),
             detail="Image Received",
+        )
+        self._report_progress(
+            workflow_id,
+            current_step=STEP_UPLOADING,
+            message="Uploading vehicle image...",
+            progress=10,
         )
 
         try:
@@ -170,6 +193,12 @@ class RunVisionVerificationWorkflowUseCase:
 
         try:
             stage_started = time.perf_counter()
+            self._report_progress(
+                workflow_id,
+                current_step=STEP_STARTING_VISION,
+                message="Starting Vision AI analysis...",
+                progress=15,
+            )
             self._logger.info(
                 "workflow_vision_analysis_started",
                 workflow_id=workflow_id,
@@ -177,6 +206,12 @@ class RunVisionVerificationWorkflowUseCase:
             )
             if self._vision is None:
                 raise RuntimeError("Vision AI service is not configured")
+            self._report_progress(
+                workflow_id,
+                current_step=STEP_ANALYZING_IMAGE,
+                message="Analyzing vehicle image...",
+                progress=25,
+            )
             analysis = self._vision.analyze_vehicle_image(image_bytes)
             analysis_confidence = analysis.confidence
             detected_plate = normalize_registration_number(analysis.registration_number or "")
@@ -213,6 +248,18 @@ class RunVisionVerificationWorkflowUseCase:
                     vision_explanation=analysis.explanation,
                     total_duration_ms=self._elapsed_ms(workflow_started),
                 )
+            self._report_progress(
+                workflow_id,
+                current_step=STEP_READING_PLATE,
+                message=f"Reading plate {detected_plate}...",
+                progress=45,
+            )
+            self._report_progress(
+                workflow_id,
+                current_step=STEP_VEHICLE_RECOGNITION,
+                message="Recognizing vehicle attributes...",
+                progress=55,
+            )
             self._record_step(
                 steps,
                 workflow_id,
@@ -238,6 +285,12 @@ class RunVisionVerificationWorkflowUseCase:
 
         try:
             stage_started = time.perf_counter()
+            self._report_progress(
+                workflow_id,
+                current_step=STEP_REGISTRY_LOOKUP,
+                message="Looking up vehicle in registry...",
+                progress=70,
+            )
             self._logger.info(
                 "workflow_vehicle_verification_started",
                 workflow_id=workflow_id,
@@ -306,6 +359,12 @@ class RunVisionVerificationWorkflowUseCase:
 
         try:
             stage_started = time.perf_counter()
+            self._report_progress(
+                workflow_id,
+                current_step=STEP_RISK_ASSESSMENT,
+                message="Assessing investigation risk...",
+                progress=85,
+            )
             self._logger.info(
                 "workflow_risk_engine_started",
                 workflow_id=workflow_id,
@@ -350,15 +409,18 @@ class RunVisionVerificationWorkflowUseCase:
         investigation_summary = self._investigation_summary.build(
             InvestigationSummaryInput(
                 plate_detected=True,
-                detection_confidence=analysis_confidence,
-                registration_number=detected_plate,
-                ocr_confidence=recognition.ocr_confidence,
-                vehicle_found=lookup_result.vehicle is not None,
-                registration_status=(
-                    lookup_result.vehicle.registration_status if lookup_result.vehicle else None
-                ),
-                attribute_comparison=comparison_result,
-                risk_level=risk_result.risk_level.value,
+                registration_number=analysis.registration_number or detected_plate,
+                registration_confidence=analysis.confidence,
+                vehicle_category=analysis.vehicle_type,
+                vehicle_category_confidence=analysis.confidence if analysis.vehicle_type else None,
+                brand=analysis.brand,
+                brand_confidence=analysis.confidence if analysis.brand else None,
+                model=analysis.model,
+                model_confidence=analysis.confidence if analysis.model else None,
+                color=analysis.vehicle_color,
+                color_confidence=analysis.confidence if analysis.vehicle_color else None,
+                overall_confidence=analysis_confidence,
+                vision_explanation=analysis.explanation,
             )
         )
 
@@ -367,6 +429,12 @@ class RunVisionVerificationWorkflowUseCase:
         now = datetime.now(UTC)
         try:
             stage_started = time.perf_counter()
+            self._report_progress(
+                workflow_id,
+                current_step=STEP_GENERATING_REPORT,
+                message="Generating investigation report...",
+                progress=95,
+            )
             self._logger.info(
                 "workflow_report_generation_started",
                 workflow_id=workflow_id,
@@ -491,6 +559,34 @@ class RunVisionVerificationWorkflowUseCase:
                 ),
             )
 
+            vehicle = lookup_result.vehicle
+            vision_snapshot = VisionScanSnapshot(
+                registration_number=detected_plate,
+                brand=attributes.brand,
+                model=analysis.model,
+                color=attributes.color,
+                vehicle_type=attributes.vehicle_type,
+                confidence=analysis_confidence,
+                brand_confidence=attributes.brand_confidence,
+                color_confidence=attributes.color_confidence,
+                vehicle_type_confidence=attributes.vehicle_type_confidence,
+                explanation=analysis.explanation,
+            )
+            registry_snapshot = RegistryScanSnapshot(
+                lookup_status=verification.lookup_status.value,
+                message=verification.message,
+                vehicle_id=vehicle.vehicle_id if vehicle else None,
+                plate_number=vehicle.plate_number if vehicle else None,
+                make=vehicle.make if vehicle else None,
+                model=vehicle.model if vehicle else None,
+                color=vehicle.color if vehicle else None,
+                vehicle_type=vehicle.vehicle_type if vehicle else None,
+                year=vehicle.year if vehicle else None,
+                registration_status=vehicle.registration_status if vehicle else None,
+                registered_owner=vehicle.registered_owner if vehicle else None,
+                jurisdiction=vehicle.jurisdiction if vehicle else None,
+            )
+
             persist_result = self._persist_outcome.execute(
                 PersistWorkflowOutcomeCommand(
                     scan=SaveCompletedScanCommand(
@@ -499,13 +595,13 @@ class RunVisionVerificationWorkflowUseCase:
                         plate_text=detected_plate,
                         risk_score=risk_result.risk_score,
                         risk_level=risk_result.risk_level.value,
-                        vehicle_id=lookup_result.vehicle.vehicle_id
-                        if lookup_result.vehicle
-                        else None,
+                        vehicle_id=vehicle.vehicle_id if vehicle else None,
                         location_label=command.location_label,
                         correlation_id=workflow_id,
                         ocr_confidence=recognition.ocr_confidence,
                         image_storage_key=image_storage_key,
+                        vision_snapshot=vision_snapshot,
+                        registry_snapshot=registry_snapshot,
                     ),
                     verification=SaveVerificationResultCommand(
                         scan_id="",
@@ -657,6 +753,29 @@ class RunVisionVerificationWorkflowUseCase:
     @staticmethod
     def _elapsed_ms(started_at: float) -> int:
         return int((time.perf_counter() - started_at) * 1000)
+
+    def _report_progress(
+        self,
+        workflow_id: str,
+        *,
+        current_step: str,
+        message: str,
+        progress: int,
+        phase: str = "processing",
+        attempt: int = 0,
+        max_attempts: int = 5,
+    ) -> None:
+        if self._workflow_progress is None:
+            return
+        self._workflow_progress.update(
+            workflow_id,
+            current_step=current_step,
+            message=message,
+            progress=progress,
+            phase=phase,
+            attempt=attempt,
+            max_attempts=max_attempts,
+        )
 
     def _log_exception(self, workflow_id: str, stage: str, exc: Exception) -> None:
         self._logger.error(

@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Brain,
   Check,
@@ -24,35 +23,31 @@ interface AiProcessingProgressProps {
   active?: boolean;
   title?: string;
   statusMessage?: string | null;
+  progressPercent?: number;
+  currentStep?: string | null;
 }
 
 export function AiProcessingProgress({
   active = true,
   title = "Vision AI Investigation in Progress",
   statusMessage = null,
+  progressPercent = 0,
+  currentStep = null,
 }: AiProcessingProgressProps) {
-  const [stageIndex, setStageIndex] = useState(0);
+  const completed = progressPercent >= 100;
 
-  useEffect(() => {
-    if (!active) {
-      setStageIndex(0);
-      return;
-    }
+  if (!active) {
+    return null;
+  }
 
-    const interval = window.setInterval(() => {
-      setStageIndex((current) => Math.min(current + 1, WORKFLOW_STAGES.length - 1));
-    }, 1800);
-
-    return () => window.clearInterval(interval);
-  }, [active]);
-
-  if (!active) return null;
-
+  const stageIndex = completed ? WORKFLOW_STAGES.length - 1 : 0;
   const currentStage = WORKFLOW_STAGES[stageIndex];
   const StageIcon = currentStage.icon;
-  const overallPercent = Math.round(((stageIndex + 1) / WORKFLOW_STAGES.length) * 100);
+  const overallPercent = progressPercent > 0 ? progressPercent : 20;
   const currentLabel = WORKFLOW_STAGE_LABELS[currentStage.id] ?? currentStage.id;
-  const subtitle = statusMessage?.trim() || `${currentLabel}…`;
+  const subtitle =
+    statusMessage?.trim() ||
+    (currentStep ? `${currentStep}…` : `${currentLabel}…`);
 
   return (
     <div className="animate-fade-in rounded-2xl border border-blue-200 bg-gradient-to-br from-white to-blue-50/40 p-6 shadow-soft ring-1 ring-blue-100">
@@ -73,8 +68,8 @@ export function AiProcessingProgress({
       <ol className="relative mt-6 space-y-0 border-l-2 border-blue-100 pl-4" aria-label="Vision AI workflow stages">
         {WORKFLOW_STAGES.map((stage, index) => {
           const Icon = stage.icon;
-          const isComplete = index < stageIndex;
-          const isCurrent = index === stageIndex;
+          const isComplete = completed && index <= stageIndex;
+          const isCurrent = !completed && index === stageIndex;
           const label = WORKFLOW_STAGE_LABELS[stage.id] ?? stage.id;
 
           return (

@@ -28,6 +28,10 @@ MIGRATIONS: tuple[tuple[str, MigrationFn], ...] = (
         "005_e_challan_tables",
         lambda engine: _migration_005_e_challan_tables(engine),
     ),
+    (
+        "006_scan_vision_registry_snapshots",
+        lambda engine: _migration_006_scan_vision_registry_snapshots(engine),
+    ),
 )
 
 
@@ -524,3 +528,18 @@ def _migration_005_e_challan_tables(engine: Engine) -> None:
         connection.execute(
             text("CREATE INDEX IF NOT EXISTS idx_challans_issued_at ON challans (issued_at)")
         )
+
+
+def _migration_006_scan_vision_registry_snapshots(engine: Engine) -> None:
+    _add_column_if_missing(
+        engine,
+        "scan_history",
+        "vision_snapshot_json",
+        "vision_snapshot_json TEXT",
+    )
+    _add_column_if_missing(
+        engine,
+        "scan_history",
+        "registry_snapshot_json",
+        "registry_snapshot_json TEXT",
+    )

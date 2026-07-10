@@ -80,7 +80,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers,
     });
-  } catch {
+  } catch (error) {
+    if (init?.signal?.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+      throw error;
+    }
     throw new HttpError("Unable to reach the backend service.", 0, "NETWORK_ERROR");
   }
 
@@ -196,11 +199,13 @@ export async function postFormDataApi<T>(
   path: string,
   formData: FormData,
   extraHeaders?: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const envelope = await request<ApiResponse<T>>(path, {
     method: "POST",
     body: formData,
     headers: extraHeaders,
+    signal,
   });
   return envelope.data;
 }

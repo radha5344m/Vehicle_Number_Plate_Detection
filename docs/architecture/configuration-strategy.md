@@ -59,11 +59,13 @@ Copy [`backend/.env.example`](../../backend/.env.example) to `backend/.env`. Sec
 
 | Variable | Required when | Description |
 |----------|---------------|-------------|
-| `SENTINEL_VISION_PROVIDER` | always | `gemini` (default) or `stub` (local/tests) |
-| `GEMINI_API_KEY` | `provider=gemini` | Google AI Studio / Gemini API key |
-| `SENTINEL_GEMINI_MODEL` | optional | Model id (default `gemini-2.5-flash`) |
+| `SENTINEL_VISION_PROVIDER` | always | `huggingface` (default) or `stub` (local/tests) |
+| `HF_TOKEN` | `provider=huggingface` | Hugging Face access token |
+| `HF_MODEL` | optional | Model id (default `HuggingFaceTB/SmolVLM2-2B-Instruct`) |
+| `HF_API_URL` | optional | Inference endpoint (default chat completions router URL) |
+| `SENTINEL_HF_REQUEST_TIMEOUT_SECONDS` | optional | Request timeout (default `60`) |
 
-When `SENTINEL_VISION_PROVIDER=gemini`, startup validates `GEMINI_API_KEY` only.  
+When `SENTINEL_VISION_PROVIDER=huggingface`, startup validates `HF_TOKEN` only.  
 `OPENAI_API_KEY` is **not** used and is **never** validated.
 
 When `SENTINEL_VISION_PROVIDER=stub`, no cloud API key is required.

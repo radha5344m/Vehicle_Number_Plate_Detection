@@ -4,7 +4,12 @@ import {
   formatInr,
   formatVerificationStatus,
   resolveChallanSummary,
-  resolveVehicleName,
+  resolveRegistryColor,
+  resolveRegistryMake,
+  resolveVisionBrand,
+  resolveVisionColor,
+  resolveVisionModel,
+  resolveVisionVehicleName,
 } from "@/lib/fieldVerificationSummary";
 import type { VehicleVerificationWorkflowResult } from "@/types/api/workflow";
 
@@ -20,8 +25,8 @@ function baseResult(
       vehicle_id: "v-1",
       plate_number: "AP09AB1234",
       jurisdiction: "AP",
-      make: "Toyota",
-      model: "Innova Crysta",
+      make: "Maruti Suzuki",
+      model: "Swift",
       color: "White",
       year: 2020,
       vehicle_type: "car",
@@ -29,16 +34,16 @@ function baseResult(
       registered_owner: "Ravi Kumar",
     },
     vision_attributes: {
-      color: "White",
-      vehicle_type: "car",
-      brand: "Toyota",
+      color: "Black",
+      vehicle_type: "hatchback",
+      brand: "Maruti Suzuki",
       color_confidence: 0.9,
       vehicle_type_confidence: 0.88,
       brand_confidence: 0.91,
       model_version: "gemini",
     },
-    vehicle_model: "Innova Crysta",
-    vision_explanation: null,
+    vehicle_model: "Baleno",
+    vision_explanation: "Dark hatchback observed in frame.",
     attribute_comparison: null,
     verification_result: { lookup_status: "found", message: "Vehicle found" },
     risk_score: 0.2,
@@ -63,8 +68,24 @@ describe("fieldVerificationSummary", () => {
     expect(formatVerificationStatus("not_found")).toBe("Not Found");
   });
 
-  it("builds vehicle name from registry and vision data", () => {
-    expect(resolveVehicleName(baseResult())).toBe("Toyota Innova Crysta");
+  it("keeps vision and registry attribute sources separate", () => {
+    const result = baseResult();
+    expect(resolveVisionBrand(result)).toBe("Maruti Suzuki");
+    expect(resolveVisionModel(result)).toBe("Baleno");
+    expect(resolveVisionColor(result)).toBe("Black");
+    expect(resolveVisionVehicleName(result)).toBe("Maruti Suzuki Baleno");
+    expect(resolveRegistryMake(result)).toBe("Maruti Suzuki");
+    expect(resolveRegistryColor(result)).toBe("White");
+  });
+
+  it("preserves vision fields when registry is not found", () => {
+    const result = baseResult({
+      vehicle_information: null,
+      verification_result: { lookup_status: "not_found", message: "No record" },
+    });
+    expect(resolveVisionColor(result)).toBe("Black");
+    expect(resolveVisionModel(result)).toBe("Baleno");
+    expect(resolveRegistryColor(result)).toBe("—");
   });
 
   it("defaults challan summary when lookup data is unavailable", () => {

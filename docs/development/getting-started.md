@@ -13,12 +13,13 @@ copy .env.example .env
 Edit `backend/.env` and set vision configuration:
 
 ```env
-SENTINEL_VISION_PROVIDER=gemini
-GEMINI_API_KEY=
-SENTINEL_GEMINI_MODEL=gemini-2.5-flash
+SENTINEL_VISION_PROVIDER=huggingface
+HF_TOKEN=
+HF_MODEL=HuggingFaceTB/SmolVLM2-2B-Instruct
+HF_API_URL=https://router.huggingface.co/v1/chat/completions
 ```
 
-- Set `GEMINI_API_KEY` to your Google AI Studio / Gemini API key when using Gemini.
+- Set `HF_TOKEN` to your Hugging Face access token when using the Inference API.
 - For local runs without a cloud key: `SENTINEL_VISION_PROVIDER=stub`.
 - `OPENAI_API_KEY` is not used.
 

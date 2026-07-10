@@ -67,10 +67,11 @@ from sentinel_anpr.infrastructure.config.settings import (
     Settings,
     get_backend_dir,
     get_env_file_path,
-    gemini_api_key_exists,
+    hf_token_exists,
     load_env_file,
     reload_settings,
-    resolve_gemini_api_key,
+    resolve_hf_api_url,
+    resolve_hf_token,
     validate_vision_configuration,
 )
 from sentinel_anpr.infrastructure.authentication.jwt.jwt_token_provider import JwtTokenProvider
@@ -83,8 +84,10 @@ from sentinel_anpr.infrastructure.authentication.stores.sqlite_credential_store 
 )
 from sentinel_anpr.application.ports.outbound.logging_port import LoggingPort
 from sentinel_anpr.application.ports.vision_ai_service import VisionAiService
-from sentinel_anpr.infrastructure.ai.gemini_retry import parse_fallback_models
-from sentinel_anpr.infrastructure.ai.gemini_vision_service import GeminiVisionService
+from sentinel_anpr.infrastructure.ai.huggingface_vision_service import HuggingFaceVisionService
+from sentinel_anpr.infrastructure.adapters.workflow_progress_adapter import (
+    NoOpWorkflowProgressAdapter,
+)
 from sentinel_anpr.infrastructure.ai.stub_vision_service import StubVisionService
 from sentinel_anpr.infrastructure.database.init_demo_database import initialize_demo_database
 from sentinel_anpr.infrastructure.database.repositories.vehicles.sqlite_vehicle_repository import (
@@ -222,20 +225,23 @@ def _build_vision_ai_service(
     """Select the vision provider from configuration.
 
     Active providers:
-    - ``gemini`` → :class:`GeminiVisionService` (default production provider)
+    - ``huggingface`` → :class:`HuggingFaceVisionService` (default production provider)
     - ``stub`` → :class:`StubVisionService` (local/tests)
     """
-    provider = (settings.vision_provider or "gemini").strip().lower()
-    gemini_model = (settings.gemini_model or "gemini-2.5-flash").strip() or "gemini-2.5-flash"
-    key_exists = gemini_api_key_exists(settings)
+    provider = (settings.vision_provider or "huggingface").strip().lower()
+    hf_model = (settings.hf_model or "google/gemma-3-4b-it:deepinfra").strip()
+    hf_model = hf_model or "google/gemma-3-4b-it:deepinfra"
+    token_exists = hf_token_exists(settings)
+    hf_api_url = resolve_hf_api_url(settings=settings)
 
-    # Startup diagnostics — never log the API key value.
+    # Startup diagnostics — never log the token value.
     logger.info(
         "startup_configuration",
         detail="Vision configuration",
         vision_provider=provider,
-        gemini_model=gemini_model,
-        gemini_api_key_exists=key_exists,
+        hf_model=hf_model,
+        hf_api_url=hf_api_url,
+        hf_token_exists=token_exists,
         project_root=str(get_backend_dir()),
         working_directory=os.getcwd(),
         loaded_env_path=str(get_env_file_path()),
@@ -243,27 +249,26 @@ def _build_vision_ai_service(
         environment=settings.env,
     )
     logger.info("Vision Provider", vision_provider=provider)
-    logger.info("Gemini Model", gemini_model=gemini_model)
-    logger.info("Gemini API Key Exists", gemini_api_key_exists=key_exists)
+    logger.info("Hugging Face Model", hf_model=hf_model)
+    logger.info("Hugging Face Token Exists", hf_token_exists=token_exists)
 
-    if provider == "gemini":
+    if provider == "huggingface":
         validate_vision_configuration(settings)
-        api_key = resolve_gemini_api_key(settings)
-        service = GeminiVisionService(
-            api_key=api_key,
-            model=gemini_model,
-            fallback_models=parse_fallback_models(settings.gemini_fallback_models),
-            max_retries=settings.gemini_max_retries,
-            request_timeout_seconds=settings.gemini_request_timeout_seconds,
+        token = resolve_hf_token(settings)
+        service = HuggingFaceVisionService(
+            token=token,
+            model=hf_model,
+            api_url=hf_api_url,
+            request_timeout_seconds=settings.hf_request_timeout_seconds,
             logger=logger,
         )
         logger.info(
             "vision_service_ready",
             vision_provider=provider,
-            gemini_model=gemini_model,
-            gemini_api_key_exists=True,
+            hf_model=hf_model,
+            hf_token_exists=True,
             vision_service_type=type(service).__name__,
-            gemini_service_initialized=service.is_ready,
+            huggingface_service_initialized=service.is_ready,
         )
         if get_env_file_path().is_file():
             logger.info("loaded_env_successfully", path=str(get_env_file_path()))
@@ -275,17 +280,17 @@ def _build_vision_ai_service(
         if settings.env.strip().lower() == "production":
             raise RuntimeError(
                 "SENTINEL_VISION_PROVIDER=stub is not allowed when SENTINEL_ENV=production. "
-                "Set SENTINEL_VISION_PROVIDER=gemini and configure GEMINI_API_KEY."
+                "Set SENTINEL_VISION_PROVIDER=huggingface and configure HF_TOKEN."
             )
-        if key_exists and get_env_file_path().is_file():
+        if token_exists and get_env_file_path().is_file():
             file_values = dotenv_values(get_env_file_path())
             file_provider = (file_values.get("SENTINEL_VISION_PROVIDER") or "").strip().lower()
-            if file_provider == "gemini":
+            if file_provider == "huggingface":
                 logger.warning(
-                    "vision_provider_stub_over_gemini_config",
+                    "vision_provider_stub_over_huggingface_config",
                     detail=(
-                        "Stub vision is active but backend/.env requests gemini and "
-                        "GEMINI_API_KEY is set. Restart in a fresh shell or remove "
+                        "Stub vision is active but backend/.env requests huggingface and "
+                        "HF_TOKEN is set. Restart in a fresh shell or remove "
                         "SENTINEL_VISION_PROVIDER=stub from the process environment."
                     ),
                     vision_provider=provider,
@@ -295,15 +300,15 @@ def _build_vision_ai_service(
         logger.info(
             "vision_service_ready",
             vision_provider=provider,
-            gemini_model=gemini_model,
-            gemini_api_key_exists=key_exists,
+            hf_model=hf_model,
+            hf_token_exists=token_exists,
             vision_service_type=type(service).__name__,
         )
         return service
 
     raise ValueError(
         f"Unsupported vision_provider '{settings.vision_provider}'. "
-        "Expected 'gemini' or 'stub'."
+        "Expected 'huggingface' or 'stub'."
     )
 
 
@@ -561,6 +566,7 @@ def build_container() -> AppContainer:
         generate_investigation_report_use_case=generate_investigation_report_use_case,
         lookup_challans_use_case=lookup_challans_by_registration_use_case,
         logger=logger,
+        workflow_progress=NoOpWorkflowProgressAdapter(),
     )
 
     dashboard_data = SqliteDashboardDataAdapter(session_factory=session_factory)
@@ -583,7 +589,7 @@ def build_container() -> AppContainer:
         workflow_type=type(run_vehicle_verification_workflow_use_case).__name__,
         vision_service_type=type(vision_ai_service).__name__,
         vision_provider=settings.vision_provider,
-        gemini_api_key_exists=bool(resolve_gemini_api_key(settings)),
+        hf_token_exists=bool(resolve_hf_token(settings)),
     )
     logger.info("container_initialized", environment=config.environment)
 

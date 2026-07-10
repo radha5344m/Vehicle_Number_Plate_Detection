@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HttpError } from "@/services/api/httpClient";
 import { workflowService } from "@/services/workflowService";
-import { isAuthenticated } from "@/stores/authStore";
 import type { VehicleVerificationWorkflowResult } from "@/types/api/workflow";
+
+const VERIFYING_MESSAGE = "Verifying vehicle…";
 
 function normalizeWorkflowResult(
   data: VehicleVerificationWorkflowResult,
@@ -17,19 +18,13 @@ function normalizeWorkflowResult(
   };
 }
 
-function createCorrelationId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `workflow-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 interface UseVehicleVerificationWorkflowResult {
   run: (vehicleImage: File, locationLabel?: string) => Promise<void>;
   result: VehicleVerificationWorkflowResult | null;
   loading: boolean;
+  isVerifying: boolean;
   error: string | null;
-  progressMessage: string | null;
+  loadingMessage: string | null;
   reset: () => void;
 }
 
@@ -37,108 +32,100 @@ export function useVehicleVerificationWorkflow(): UseVehicleVerificationWorkflow
   const [result, setResult] = useState<VehicleVerificationWorkflowResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progressMessage, setProgressMessage] = useState<string | null>(null);
-  const pollAbortRef = useRef<AbortController | null>(null);
-  const pollIntervalRef = useRef<number | null>(null);
 
-  function stopProgressPolling() {
-    pollAbortRef.current?.abort();
-    pollAbortRef.current = null;
-    if (pollIntervalRef.current !== null) {
-      window.clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-  }
+  const verificationActiveRef = useRef(false);
+  const startRequestAbortRef = useRef<AbortController | null>(null);
 
-  function startProgressPolling(correlationId: string) {
-    stopProgressPolling();
-
-    if (!isAuthenticated()) {
-      return;
-    }
-
-    const controller = new AbortController();
-    pollAbortRef.current = controller;
-
-    async function pollProgress() {
-      if (controller.signal.aborted || !isAuthenticated()) {
-        return;
-      }
-
-      try {
-        const progress = await workflowService.getVisionProgress(
-          correlationId,
-          controller.signal,
-        );
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        if (progress.phase !== "idle" && progress.message) {
-          setProgressMessage(progress.message);
-        }
-
-        if (progress.phase === "completed" || progress.phase === "failed") {
-          stopProgressPolling();
-        }
-      } catch (err) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        if (err instanceof HttpError && (err.status === 401 || err.code === "AUTH_MISSING")) {
-          stopProgressPolling();
-        }
-      }
-    }
-
-    void pollProgress();
-    pollIntervalRef.current = window.setInterval(() => {
-      void pollProgress();
-    }, 1000);
-  }
+  const reset = useCallback(() => {
+    startRequestAbortRef.current?.abort();
+    startRequestAbortRef.current = null;
+    verificationActiveRef.current = false;
+    setResult(null);
+    setLoading(false);
+    setError(null);
+  }, []);
 
   useEffect(() => {
     return () => {
-      stopProgressPolling();
+      startRequestAbortRef.current?.abort();
+      verificationActiveRef.current = false;
     };
   }, []);
 
-  async function run(vehicleImage: File, locationLabel?: string) {
-    const correlationId = createCorrelationId();
-    setLoading(true);
+  const run = useCallback(async (vehicleImage: File, locationLabel?: string) => {
+    if (verificationActiveRef.current) {
+      return;
+    }
+
+    verificationActiveRef.current = true;
+    startRequestAbortRef.current?.abort();
+    const startAbort = new AbortController();
+    startRequestAbortRef.current = startAbort;
+
+    setResult(null);
     setError(null);
-    setProgressMessage(null);
-    startProgressPolling(correlationId);
+    setLoading(true);
 
     try {
-      const data = await workflowService.runVehicleVerification(
+      const data = await workflowService.startVehicleVerification(
         vehicleImage,
         locationLabel,
-        correlationId,
+        startAbort.signal,
       );
+
+      if (startAbort.signal.aborted) {
+        return;
+      }
+
+      if (data.status === "processing") {
+        throw new Error(
+          "Backend returned a processing response. Restart the backend (python main.py) and try again.",
+        );
+      }
+
       setResult(normalizeWorkflowResult(data));
+      if (data.status === "failed") {
+        if (!data.failure_message && !data.registration_number) {
+          setError(
+            "Verification could not be completed. No registration number was detected.",
+          );
+        }
+      } else if (data.status !== "completed" && !data.registration_number) {
+        setError(
+          data.failure_message ??
+            "Verification could not be completed. No registration number was detected.",
+        );
+      }
     } catch (err) {
+      if (startAbort.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+        return;
+      }
       const message =
         err instanceof HttpError
           ? err.message
           : err instanceof TypeError
             ? "Cannot reach the backend — ensure it is running on port 8080 (python main.py)."
-            : "Workflow failed — ensure you are logged in and the backend is running.";
+            : err instanceof Error && err.message
+              ? err.message
+              : "Vehicle verification failed. Please try again.";
       setError(message);
       throw new Error(message);
     } finally {
-      stopProgressPolling();
-      setProgressMessage(null);
+      verificationActiveRef.current = false;
       setLoading(false);
+      if (startRequestAbortRef.current === startAbort) {
+        startRequestAbortRef.current = null;
+      }
     }
-  }
+  }, []);
 
-  function reset() {
-    stopProgressPolling();
-    setResult(null);
-    setError(null);
-    setProgressMessage(null);
-  }
-
-  return { run, result, loading, error, progressMessage, reset };
+  return {
+    run,
+    result,
+    loading,
+    isVerifying: loading,
+    error,
+    loadingMessage: loading ? VERIFYING_MESSAGE : null,
+    reset,
+  };
 }

@@ -5,6 +5,40 @@ from datetime import datetime
 
 
 @dataclass(frozen=True)
+class VisionScanSnapshot:
+    """Raw vision AI output persisted with a scan."""
+
+    registration_number: str | None
+    brand: str | None
+    model: str | None
+    color: str | None
+    vehicle_type: str | None
+    confidence: float | None
+    brand_confidence: float | None
+    color_confidence: float | None
+    vehicle_type_confidence: float | None
+    explanation: str | None
+
+
+@dataclass(frozen=True)
+class RegistryScanSnapshot:
+    """Registry lookup output persisted with a scan."""
+
+    lookup_status: str | None
+    message: str | None
+    vehicle_id: str | None = None
+    plate_number: str | None = None
+    make: str | None = None
+    model: str | None = None
+    color: str | None = None
+    vehicle_type: str | None = None
+    year: int | None = None
+    registration_status: str | None = None
+    registered_owner: str | None = None
+    jurisdiction: str | None = None
+
+
+@dataclass(frozen=True)
 class SaveCompletedScanCommand:
     """Persist a completed scan."""
 
@@ -19,6 +53,8 @@ class SaveCompletedScanCommand:
     correlation_id: str | None = None
     ocr_confidence: float | None = None
     image_storage_key: str | None = None
+    vision_snapshot: VisionScanSnapshot | None = None
+    registry_snapshot: RegistryScanSnapshot | None = None
 
 
 @dataclass(frozen=True)

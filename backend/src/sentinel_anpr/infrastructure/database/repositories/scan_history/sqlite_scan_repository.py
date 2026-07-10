@@ -1,7 +1,9 @@
 """SQLite scan history repository."""
 
+import json
 import math
 import uuid
+from dataclasses import asdict
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -42,6 +44,16 @@ class SqliteScanRepository(ScanRepositoryPort):
         completed_at = now
         plate_text = normalize_registration_number(command.plate_text)
         resolved_scan_id = scan_id or str(uuid.uuid4())
+        vision_snapshot_json = (
+            json.dumps(asdict(command.vision_snapshot), sort_keys=True)
+            if command.vision_snapshot is not None
+            else None
+        )
+        registry_snapshot_json = (
+            json.dumps(asdict(command.registry_snapshot), sort_keys=True)
+            if command.registry_snapshot is not None
+            else None
+        )
 
         model = ScanModel(
             scan_id=resolved_scan_id,
@@ -56,6 +68,8 @@ class SqliteScanRepository(ScanRepositoryPort):
             correlation_id=command.correlation_id,
             ocr_confidence=command.ocr_confidence,
             image_storage_key=command.image_storage_key,
+            vision_snapshot_json=vision_snapshot_json,
+            registry_snapshot_json=registry_snapshot_json,
             scanned_at=scanned_at,
             completed_at=completed_at,
             created_at=now,

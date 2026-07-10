@@ -13,16 +13,18 @@ def compose_investigation_reasoning(command: GenerateInvestigationReportCommand)
     """Build narrative AI Reasoning from registration, Vision, registry, comparison, and risk."""
     paragraphs: list[str] = []
 
-    plate = (command.detected_plate or "").strip() or "UNKNOWN"
-    confidence = command.ocr_result.ocr_confidence
     vision = command.vision_analysis
+    plate = (
+        (vision.registration_number if vision and vision.registration_number else None)
+        or (command.detected_plate or "")
+    ).strip() or "UNKNOWN"
+    confidence = command.ocr_result.ocr_confidence
     details = command.vehicle_details
     comparison = command.attribute_comparison
     lookup = (command.lookup_status or "").strip().lower()
     risk_level = (command.risk_level or "").strip().upper()
     risk_score_pct = int(round(max(0.0, min(1.0, command.risk_score)) * 100))
 
-    # Registration / Vision registration
     vision_conf = vision.confidence if vision and vision.confidence is not None else confidence
     paragraphs.append(
         f"Vision AI extracted registration number {plate} with overall confidence "
@@ -31,7 +33,17 @@ def compose_investigation_reasoning(command: GenerateInvestigationReportCommand)
     if vision and vision.explanation and vision.explanation.strip():
         paragraphs.append(f"Vision model rationale: {vision.explanation.strip()}")
 
-    # Registry verification
+    if vision:
+        observed_bits = [
+            f"brand {vision.brand}" if vision.brand else None,
+            f"model {vision.model}" if vision.model else None,
+            f"color {vision.color}" if vision.color else None,
+            f"type {vision.vehicle_type}" if vision.vehicle_type else None,
+        ]
+        observed = ", ".join(bit for bit in observed_bits if bit)
+        if observed:
+            paragraphs.append(f"Vision AI observed vehicle characteristics: {observed}.")
+
     if lookup in {"found", "matched", "match"}:
         owner = (details.registered_owner if details else None) or "the registered owner on file"
         status = (details.registration_status if details else None) or "recorded"
@@ -46,7 +58,7 @@ def compose_investigation_reasoning(command: GenerateInvestigationReportCommand)
         )
     elif command.verification_message:
         paragraphs.append(f"Registry verification outcome: {command.verification_message.strip()}")
-    elif details and (details.plate_number or details.make):
+    elif details and details.plate_number:
         paragraphs.append(
             f"Registry details were available for comparison against observed vehicle attributes "
             f"for plate {plate}."
@@ -56,7 +68,6 @@ def compose_investigation_reasoning(command: GenerateInvestigationReportCommand)
             f"No registry vehicle details were supplied for plate {plate} at report time."
         )
 
-    # Attribute comparison
     if comparison and comparison.items:
         matched = [i for i in comparison.items if i.matches is True]
         mismatched = [i for i in comparison.items if i.matches is False]
@@ -72,7 +83,9 @@ def compose_investigation_reasoning(command: GenerateInvestigationReportCommand)
             for item in mismatched:
                 observed = item.observed or "—"
                 registered = item.registered or "—"
-                parts.append(f"{item.attribute}: observed '{observed}' vs registered '{registered}'")
+                parts.append(
+                    f"{item.attribute}: vision '{observed}' vs registered '{registered}'"
+                )
             paragraphs.append("Material mismatches: " + "; ".join(parts) + ".")
         if comparison.overall_match is True:
             paragraphs.append(
@@ -84,19 +97,6 @@ def compose_investigation_reasoning(command: GenerateInvestigationReportCommand)
                 "which may indicate cloning, misread attributes, or registry drift."
             )
 
-    # Vision attribute narrative (when comparison absent but vision present)
-    elif vision:
-        observed_bits = [
-            f"brand {vision.brand}" if vision.brand else None,
-            f"model {vision.model}" if vision.model else None,
-            f"color {vision.color}" if vision.color else None,
-            f"type {vision.vehicle_type}" if vision.vehicle_type else None,
-        ]
-        observed = ", ".join(bit for bit in observed_bits if bit)
-        if observed:
-            paragraphs.append(f"Vision AI observed vehicle characteristics: {observed}.")
-
-    # Risk engine
     paragraphs.append(
         f"The risk engine assigned level {risk_level} with score {risk_score_pct}/100."
     )

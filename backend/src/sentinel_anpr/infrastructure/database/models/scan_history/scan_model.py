@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Index, String
+from sqlalchemy import DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from sentinel_anpr.infrastructure.database.models.base import Base
@@ -33,6 +33,8 @@ class ScanModel(Base):
     correlation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     ocr_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     image_storage_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    vision_snapshot_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    registry_snapshot_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

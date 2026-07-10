@@ -7,6 +7,11 @@ export interface ChallanSummary {
   statusLabel: string;
 }
 
+function orDash(value: string | null | undefined): string {
+  const text = value?.trim();
+  return text ? text : "—";
+}
+
 export function formatVerificationStatus(lookupStatus: string | null | undefined): string {
   if (lookupStatus === "found") return "Found";
   if (lookupStatus === "not_found") return "Not Found";
@@ -28,46 +33,72 @@ export function formatInr(amount: number): string {
   return `₹${amount.toLocaleString("en-IN")}`;
 }
 
-export function resolveVehicleName(result: VehicleVerificationWorkflowResult): string {
+/** Vision-only registration number from workflow / Gemini output. */
+export function resolveVisionRegistrationNumber(
+  result: VehicleVerificationWorkflowResult,
+): string {
+  return orDash(result.registration_number);
+}
+
+/** Vision-only brand from Gemini attributes. */
+export function resolveVisionBrand(result: VehicleVerificationWorkflowResult): string {
+  return orDash(result.vision_attributes?.brand);
+}
+
+/** Vision-only model from Gemini output. */
+export function resolveVisionModel(result: VehicleVerificationWorkflowResult): string {
+  return orDash(result.vehicle_model);
+}
+
+/** Vision-only color from Gemini attributes. */
+export function resolveVisionColor(result: VehicleVerificationWorkflowResult): string {
+  return orDash(result.vision_attributes?.color);
+}
+
+/** Vision-only vehicle type from Gemini attributes. */
+export function resolveVisionVehicleType(result: VehicleVerificationWorkflowResult): string {
+  return orDash(result.vision_attributes?.vehicle_type);
+}
+
+export function resolveVisionVehicleName(result: VehicleVerificationWorkflowResult): string {
+  const brand = result.vision_attributes?.brand?.trim() || "";
+  const model = result.vehicle_model?.trim() || "";
+  const combined = [brand, model].filter(Boolean).join(" ").trim();
+  if (combined) return combined;
+  return orDash(result.vision_attributes?.vehicle_type);
+}
+
+/** Registry-only make from database record. */
+export function resolveRegistryMake(result: VehicleVerificationWorkflowResult): string {
+  return orDash(result.vehicle_information?.make);
+}
+
+/** Registry-only model from database record. */
+export function resolveRegistryModel(result: VehicleVerificationWorkflowResult): string {
+  return orDash(result.vehicle_information?.model);
+}
+
+/** Registry-only color from database record. */
+export function resolveRegistryColor(result: VehicleVerificationWorkflowResult): string {
+  return orDash(result.vehicle_information?.color);
+}
+
+/** Registry-only vehicle type from database record. */
+export function resolveRegistryVehicleType(result: VehicleVerificationWorkflowResult): string {
+  return orDash(result.vehicle_information?.vehicle_type);
+}
+
+export function resolveRegistryVehicleName(result: VehicleVerificationWorkflowResult): string {
   const vehicle = result.vehicle_information;
-  const vision = result.vision_attributes;
-  const make = vehicle?.make?.trim() || vision?.brand?.trim() || "";
-  const model = vehicle?.model?.trim() || result.vehicle_model?.trim() || "";
+  const make = vehicle?.make?.trim() || "";
+  const model = vehicle?.model?.trim() || "";
   const combined = [make, model].filter(Boolean).join(" ").trim();
   if (combined) return combined;
-  return vehicle?.vehicle_type?.trim() || vision?.vehicle_type?.trim() || "—";
-}
-
-export function resolveBrand(result: VehicleVerificationWorkflowResult): string {
-  return (
-    result.vision_attributes?.brand?.trim() ||
-    result.vehicle_information?.make?.trim() ||
-    "—"
-  );
-}
-
-export function resolveModel(result: VehicleVerificationWorkflowResult): string {
-  return result.vehicle_model?.trim() || result.vehicle_information?.model?.trim() || "—";
-}
-
-export function resolveColor(result: VehicleVerificationWorkflowResult): string {
-  return (
-    result.vision_attributes?.color?.trim() ||
-    result.vehicle_information?.color?.trim() ||
-    "—"
-  );
-}
-
-export function resolveVehicleType(result: VehicleVerificationWorkflowResult): string {
-  return (
-    result.vision_attributes?.vehicle_type?.trim() ||
-    result.vehicle_information?.vehicle_type?.trim() ||
-    "—"
-  );
+  return orDash(vehicle?.vehicle_type);
 }
 
 export function resolveOwnerName(result: VehicleVerificationWorkflowResult): string {
-  return result.vehicle_information?.registered_owner?.trim() || "—";
+  return orDash(result.vehicle_information?.registered_owner);
 }
 
 export function resolveChallanSummary(result: VehicleVerificationWorkflowResult): ChallanSummary {

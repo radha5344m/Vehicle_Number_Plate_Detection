@@ -12,6 +12,7 @@ from sentinel_anpr.application.dto.vehicle_dto import LookupStatus, VehicleRecor
 class WorkflowStatus(StrEnum):
     """Overall workflow outcome."""
 
+    PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 

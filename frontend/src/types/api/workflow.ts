@@ -84,13 +84,6 @@ export interface VehicleVerificationWorkflowResult {
   latest_violation?: string | null;
 }
 
-export interface VisionProgress {
-  message: string;
-  attempt: number;
-  max_attempts: number;
-  phase: string;
-}
-
 export const WORKFLOW_STAGE_LABELS: Record<string, string> = {
   upload: "Image Upload",
   vision_analysis: "Vision AI Analysis",

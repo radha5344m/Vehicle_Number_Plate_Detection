@@ -18,8 +18,9 @@ import { useVehicleVerificationWorkflow } from "@/hooks/workflow/useVehicleVerif
 import { AppLayout } from "@/layouts/AppLayout";
 
 export function VehicleVerificationWorkflowPage() {
-  const { run, result, loading, error, progressMessage, reset } = useVehicleVerificationWorkflow();
   const toast = useToast();
+  const { run, result, loading, isVerifying, error, loadingMessage, reset } =
+    useVehicleVerificationWorkflow();
   const [method, setMethod] = useState<VerificationMethod | null>(null);
   const [vehicleImage, setVehicleImage] = useState<File | null>(null);
   const [vehicleImageUrl, setVehicleImageUrl] = useState<string | null>(null);
@@ -28,17 +29,15 @@ export function VehicleVerificationWorkflowPage() {
   useEffect(() => {
     if (error) {
       toast.error(error, "Verification Failed");
+      return;
     }
-  }, [error, toast]);
-
-  useEffect(() => {
     if (result?.status === "completed") {
       toast.success(
         `Registration ${result.registration_number ?? "detected"} — investigation complete.`,
         "Investigation Complete",
       );
     }
-  }, [result, toast]);
+  }, [error, result, toast]);
 
   useEffect(() => {
     if (!vehicleImage) {
@@ -64,7 +63,7 @@ export function VehicleVerificationWorkflowPage() {
   }
 
   async function handleVerify() {
-    if (!vehicleImage) return;
+    if (!vehicleImage || isVerifying) return;
     try {
       await run(vehicleImage);
     } catch {
@@ -93,7 +92,7 @@ export function VehicleVerificationWorkflowPage() {
           <VerificationMethodSelector
             selected={method}
             onSelect={handleMethodChange}
-            disabled={loading}
+            disabled={loading || isVerifying}
           />
         </Card>
 
@@ -105,7 +104,7 @@ export function VehicleVerificationWorkflowPage() {
           >
             <div className="space-y-5">
               <ImageUploadZone
-                disabled={loading}
+                disabled={loading || isVerifying}
                 onFileSelected={(file) => {
                   setVehicleImage(file);
                   reset();
@@ -115,8 +114,8 @@ export function VehicleVerificationWorkflowPage() {
 
               <Button
                 type="button"
-                loading={loading}
-                disabled={!vehicleImage || loading}
+                disabled={!vehicleImage || loading || isVerifying}
+                loading={loading || isVerifying}
                 icon={<ShieldCheck className="h-4 w-4" />}
                 size="lg"
                 className="w-full min-h-12 sm:w-auto"
@@ -136,8 +135,8 @@ export function VehicleVerificationWorkflowPage() {
           >
             <LiveCameraCapture
               key={cameraSessionKey}
-              disabled={loading}
-              verifying={loading}
+              disabled={loading || isVerifying}
+              verifying={loading || isVerifying}
               onCapturedFile={handleCapturedFile}
               onVerify={() => void handleVerify()}
               onSwitchToUpload={() => handleMethodChange("upload")}
@@ -156,7 +155,7 @@ export function VehicleVerificationWorkflowPage() {
           <AiProcessingProgress
             active
             title="Running Vision AI Investigation"
-            statusMessage={progressMessage}
+            statusMessage={loadingMessage}
           />
         )}
 

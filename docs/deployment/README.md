@@ -33,7 +33,7 @@ One service serves both the API and the built React app on the same origin.
    - **Build command:** `pip install -r requirements.txt && python scripts/build_frontend_bundle.py`
    - **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
    - **Health check:** `/v1/health`
-2. Set env vars: `GEMINI_API_KEY`, `SENTINEL_VISION_PROVIDER=gemini`, `SENTINEL_AUTH_JWT_SECRET`
+2. Set env vars: `HF_TOKEN`, `SENTINEL_VISION_PROVIDER=huggingface`, `SENTINEL_AUTH_JWT_SECRET`
 3. Leave `VITE_API_BASE_URL` empty — the build script sets same-origin mode automatically.
 
 ## Option B — Split frontend (Vercel) + backend (Render)
@@ -50,8 +50,10 @@ One service serves both the API and the built React app on the same origin.
 ```
 SENTINEL_CORS_ORIGINS=https://vehicle-number-plate-detection-rho.vercel.app
 SENTINEL_FRONTEND_URL=https://vehicle-number-plate-detection-rho.vercel.app
-SENTINEL_VISION_PROVIDER=gemini
-GEMINI_API_KEY=<your-key>
+SENTINEL_VISION_PROVIDER=huggingface
+HF_TOKEN=<your-token>
+HF_MODEL=HuggingFaceTB/SmolVLM2-2B-Instruct
+HF_API_URL=https://router.huggingface.co/v1/chat/completions
 SENTINEL_AUTH_JWT_SECRET=<random-secret>
 ```
 

@@ -11,6 +11,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Resolve backend/.env regardless of process working directory.
 _BACKEND_DIR = Path(__file__).resolve().parents[4]
 _ENV_FILE = _BACKEND_DIR / ".env"
+_DEFAULT_HF_MODEL = "google/gemma-3-4b-it:deepinfra"
+_DEFAULT_HF_API_URL = "https://router.huggingface.co/v1/chat/completions"
 
 
 def get_backend_dir() -> Path:
@@ -41,15 +43,15 @@ def load_env_file() -> Path:
     return _ENV_FILE
 
 
-def resolve_gemini_api_key(settings: "Settings | None" = None) -> str | None:
-    """Resolve the Gemini API key from backend/.env, Settings, then process env."""
+def resolve_hf_token(settings: "Settings | None" = None) -> str | None:
+    """Resolve the Hugging Face token from backend/.env, Settings, then process env."""
     if settings is None:
         settings = get_settings()
 
     candidates: list[str | None] = []
     if _ENV_FILE.is_file():
-        candidates.append(dotenv_values(_ENV_FILE).get("GEMINI_API_KEY"))
-    candidates.extend([settings.gemini_api_key, os.getenv("GEMINI_API_KEY")])
+        candidates.append(dotenv_values(_ENV_FILE).get("HF_TOKEN"))
+    candidates.extend([settings.hf_token, os.getenv("HF_TOKEN")])
 
     for candidate in candidates:
         if candidate is None:
@@ -60,43 +62,57 @@ def resolve_gemini_api_key(settings: "Settings | None" = None) -> str | None:
     return None
 
 
-def gemini_api_key_length(settings: "Settings | None" = None) -> int:
-    """Return Gemini API key length for startup diagnostics (never expose the key)."""
-    key = resolve_gemini_api_key(settings)
-    return len(key) if key else 0
+def hf_token_exists(settings: "Settings | None" = None) -> bool:
+    """Return True when a non-empty Hugging Face token is configured."""
+    return bool(resolve_hf_token(settings))
 
 
-def gemini_api_key_exists(settings: "Settings | None" = None) -> bool:
-    """Return True when a non-empty Gemini API key is configured."""
-    return bool(resolve_gemini_api_key(settings))
+def resolve_hf_api_url(
+    *,
+    model: str | None = None,
+    api_url: str | None = None,
+    settings: "Settings | None" = None,
+) -> str:
+    """Resolve the Hugging Face inference endpoint URL."""
+    if settings is None:
+        settings = get_settings()
+
+    configured = (api_url or settings.hf_api_url or "").strip()
+    resolved_model = (model or settings.hf_model or _DEFAULT_HF_MODEL).strip() or _DEFAULT_HF_MODEL
+
+    if configured:
+        if "{model}" in configured:
+            return configured.replace("{model}", resolved_model)
+        return configured
+
+    return _DEFAULT_HF_API_URL
 
 
-class MissingGeminiApiKeyError(RuntimeError):
-    """Raised at startup when Gemini is selected but GEMINI_API_KEY is missing."""
+class MissingHuggingFaceTokenError(RuntimeError):
+    """Raised at startup when Hugging Face is selected but HF_TOKEN is missing."""
 
 
 def validate_vision_configuration(settings: "Settings | None" = None) -> None:
     """Validate vision provider configuration at application startup.
 
-    When ``SENTINEL_VISION_PROVIDER=gemini``, ``GEMINI_API_KEY`` is required.
-    ``OPENAI_API_KEY`` is never read or validated for any provider.
+    When ``SENTINEL_VISION_PROVIDER=huggingface``, ``HF_TOKEN`` is required.
     """
     if settings is None:
         settings = get_settings()
 
-    provider = (settings.vision_provider or "gemini").strip().lower()
-    if provider != "gemini":
+    provider = (settings.vision_provider or "huggingface").strip().lower()
+    if provider != "huggingface":
         return
 
-    if gemini_api_key_exists(settings):
+    if hf_token_exists(settings):
         return
 
-    raise MissingGeminiApiKeyError(
-        "GEMINI_API_KEY is not set. "
-        "When SENTINEL_VISION_PROVIDER=gemini, create backend/.env from .env.example "
-        "and set GEMINI_API_KEY (Google AI Studio / Gemini API key). "
-        "Optional: SENTINEL_GEMINI_MODEL (default gemini-2.5-flash). "
-        "For local development without Gemini, set SENTINEL_VISION_PROVIDER=stub."
+    raise MissingHuggingFaceTokenError(
+        "HF_TOKEN is not set. "
+        "When SENTINEL_VISION_PROVIDER=huggingface, create backend/.env from .env.example "
+        "and set HF_TOKEN (Hugging Face access token). "
+        "Optional: HF_MODEL and HF_API_URL. "
+        "For local development without Hugging Face, set SENTINEL_VISION_PROVIDER=stub."
     )
 
 
@@ -156,21 +172,21 @@ class Settings(BaseSettings):
     # Optional regex for extra origins (e.g. Vercel preview URLs: https://.*\.vercel\.app)
     cors_origin_regex: str | None = Field(default=None)
 
-    # Vision provider: "gemini" (Google Gemini Vision) or "stub" (tests/local).
-    vision_provider: str = Field(default="gemini")
-    # GEMINI_API_KEY (no SENTINEL_ prefix) via AliasChoices; also accepts SENTINEL_GEMINI_API_KEY.
-    gemini_api_key: str | None = Field(
+    # Vision provider: "huggingface" (Hugging Face Inference API) or "stub" (tests/local).
+    vision_provider: str = Field(default="huggingface")
+    hf_token: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("GEMINI_API_KEY", "SENTINEL_GEMINI_API_KEY"),
+        validation_alias=AliasChoices("HF_TOKEN", "SENTINEL_HF_TOKEN"),
     )
-    # Bound from SENTINEL_GEMINI_MODEL (default gemini-2.5-flash).
-    gemini_model: str = Field(default="gemini-2.5-flash")
-    # Comma-separated fallback models used after repeated 503 errors.
-    gemini_fallback_models: str = Field(
-        default="gemini-2.0-flash,gemini-1.5-flash",
+    hf_model: str = Field(
+        default=_DEFAULT_HF_MODEL,
+        validation_alias=AliasChoices("HF_MODEL", "SENTINEL_HF_MODEL"),
     )
-    gemini_max_retries: int = Field(default=5)
-    gemini_request_timeout_seconds: int = Field(default=60)
+    hf_api_url: str = Field(
+        default=_DEFAULT_HF_API_URL,
+        validation_alias=AliasChoices("HF_API_URL", "SENTINEL_HF_API_URL"),
+    )
+    hf_request_timeout_seconds: int = Field(default=60)
 
 
 @lru_cache

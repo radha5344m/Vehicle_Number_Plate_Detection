@@ -85,7 +85,7 @@ class ReportLabInvestigationPdfGenerator:
         story.extend(_evidence_block(content, styles))
         story.append(Spacer(1, 8))
 
-        story.append(_section_banner("4. AI Vision Analysis"))
+        story.append(_section_banner("4. Vision AI Observation"))
         story.extend(_vision_block(content, styles))
         story.append(Spacer(1, 8))
 
@@ -532,8 +532,8 @@ def _comparison_block(content: InvestigationReportContent, styles: dict) -> list
 
     header = [
         Paragraph("<b>Attribute</b>", styles["label"]),
-        Paragraph("<b>Observed (AI)</b>", styles["label"]),
-        Paragraph("<b>Registered</b>", styles["label"]),
+        Paragraph("<b>Vision AI</b>", styles["label"]),
+        Paragraph("<b>Registry</b>", styles["label"]),
         Paragraph("<b>Result</b>", styles["label"]),
         Paragraph("<b>Conf.</b>", styles["label"]),
     ]
