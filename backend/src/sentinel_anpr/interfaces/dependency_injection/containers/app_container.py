@@ -47,6 +47,12 @@ from sentinel_anpr.application.use_cases.authentication.station_admin_portal_use
     UpdateStationDetailsUseCase,
     UpdateStationOfficerUseCase,
 )
+from sentinel_anpr.application.use_cases.blockchain.anchor_evidence_block_use_case import (
+    AnchorEvidenceBlockUseCase,
+)
+from sentinel_anpr.application.use_cases.blockchain.verify_investigation_integrity_use_case import (
+    VerifyInvestigationIntegrityUseCase,
+)
 from sentinel_anpr.application.use_cases.authentication.police_officer_portal_use_cases import (
     ChangePoliceOfficerPasswordUseCase,
     GetPoliceOfficerDashboardUseCase,
@@ -194,4 +200,6 @@ class AppContainer:
     delete_challan_use_case: DeleteChallanUseCase
     get_challan_analytics_use_case: GetChallanAnalyticsUseCase
     generate_challan_pdf_use_case: GenerateChallanPdfUseCase
+    anchor_evidence_block_use_case: AnchorEvidenceBlockUseCase
+    verify_investigation_integrity_use_case: VerifyInvestigationIntegrityUseCase
     vision_ai_service: VisionAiService | None = None

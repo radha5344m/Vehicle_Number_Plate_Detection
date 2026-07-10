@@ -20,6 +20,7 @@ from sentinel_anpr.interfaces.schemas.responses.workflow.workflow_response impor
     VehicleVerificationWorkflowData,
     VerificationResultData,
     WorkflowStepData,
+    BlockchainEvidenceData,
 )
 
 
@@ -167,4 +168,16 @@ def map_workflow_result_to_response(
         pending_challans_count=result.pending_challans_count,
         latest_violation=result.latest_violation,
         vehicle_region_id=result.vehicle_region_id,
+        blockchain_evidence=(
+            BlockchainEvidenceData(
+                block_number=result.blockchain_evidence.block_number,
+                block_timestamp=result.blockchain_evidence.block_timestamp,
+                current_hash=result.blockchain_evidence.current_hash,
+                previous_hash=result.blockchain_evidence.previous_hash,
+                report_sha256_hash=result.blockchain_evidence.report_sha256_hash,
+                integrity_verified=result.blockchain_evidence.integrity_verified,
+            )
+            if result.blockchain_evidence is not None
+            else None
+        ),
     )

@@ -42,6 +42,9 @@ from sentinel_anpr.interfaces.rest_api.v1.routes.police_officer.police_officer_h
 from sentinel_anpr.interfaces.rest_api.v1.routes.challans.challan_handler import (
     router as challans_router,
 )
+from sentinel_anpr.interfaces.rest_api.v1.routes.blockchain.blockchain_handler import (
+    router as blockchain_router,
+)
 from sentinel_anpr.interfaces.rest_api.v1.routes.health.health_handler import router as health_router
 
 api_v1_router = APIRouter(prefix="/v1")
@@ -59,4 +62,5 @@ api_v1_router.include_router(station_admin_router)
 api_v1_router.include_router(police_officer_router)
 api_v1_router.include_router(analytics_router)
 api_v1_router.include_router(workflow_router)
+api_v1_router.include_router(blockchain_router)
 api_v1_router.include_router(challans_router)

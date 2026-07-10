@@ -1,6 +1,7 @@
 import { Download, FileSearch, FileWarning, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { BlockchainEvidencePanel } from "@/components/features/workflow/BlockchainEvidencePanel";
 import { RiskLevelBadge } from "@/components/features/history/RiskLevelBadge";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -192,6 +193,8 @@ export function FieldVerificationSummary({
           </div>
         ) : null}
       </Card>
+
+      {result.scan_id && <BlockchainEvidencePanel result={result} />}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <Button className="w-full sm:w-auto" icon={<FileSearch className="h-4 w-4" />} onClick={onViewDetailed}>

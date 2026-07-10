@@ -54,6 +54,15 @@ export interface RiskSignal {
   detail: string;
 }
 
+export interface BlockchainEvidence {
+  block_number: number;
+  block_timestamp: string;
+  current_hash: string;
+  previous_hash: string;
+  report_sha256_hash: string;
+  integrity_verified: boolean;
+}
+
 export interface VehicleVerificationWorkflowResult {
   status: string;
   workflow_id: string;
@@ -83,6 +92,7 @@ export interface VehicleVerificationWorkflowResult {
   pending_challans_count?: number | null;
   latest_violation?: string | null;
   vehicle_region_id?: string | null;
+  blockchain_evidence?: BlockchainEvidence | null;
   investigations?: VehicleVerificationWorkflowResult[] | null;
 }
 

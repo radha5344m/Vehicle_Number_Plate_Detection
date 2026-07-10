@@ -32,6 +32,10 @@ MIGRATIONS: tuple[tuple[str, MigrationFn], ...] = (
         "006_scan_vision_registry_snapshots",
         lambda engine: _migration_006_scan_vision_registry_snapshots(engine),
     ),
+    (
+        "007_evidence_blocks",
+        lambda engine: _migration_007_evidence_blocks(engine),
+    ),
 )
 
 
@@ -543,3 +547,38 @@ def _migration_006_scan_vision_registry_snapshots(engine: Engine) -> None:
         "registry_snapshot_json",
         "registry_snapshot_json TEXT",
     )
+
+
+def _migration_007_evidence_blocks(engine: Engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS evidence_blocks (
+                    block_id VARCHAR(36) PRIMARY KEY,
+                    block_number INTEGER NOT NULL UNIQUE,
+                    block_timestamp TIMESTAMP NOT NULL,
+                    investigation_id VARCHAR(64) NOT NULL,
+                    report_id VARCHAR(36),
+                    registration_number VARCHAR(32) NOT NULL,
+                    officer_id VARCHAR(36) NOT NULL,
+                    previous_hash VARCHAR(64) NOT NULL,
+                    current_hash VARCHAR(64) NOT NULL,
+                    report_sha256_hash VARCHAR(64) NOT NULL,
+                    created_at TIMESTAMP NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_evidence_blocks_investigation_id "
+                "ON evidence_blocks (investigation_id)"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_evidence_blocks_block_number "
+                "ON evidence_blocks (block_number)"
+            )
+        )

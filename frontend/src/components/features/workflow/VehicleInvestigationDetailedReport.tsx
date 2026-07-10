@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { BlockchainEvidencePanel } from "@/components/features/workflow/BlockchainEvidencePanel";
 import { RiskLevelBadge } from "@/components/features/history/RiskLevelBadge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -507,6 +508,11 @@ export function VehicleInvestigationDetailedReport({
             <DetailRow label="Scan Link" value={orDash(result.scan_id)} mono />
             <DetailRow label="Integrity" value="Image SHA-256 embedded in downloadable PDF" />
           </dl>
+          {result.scan_id ? (
+            <div className="mt-4">
+              <BlockchainEvidencePanel result={result} />
+            </div>
+          ) : null}
         </SectionCard>
       </section>
 

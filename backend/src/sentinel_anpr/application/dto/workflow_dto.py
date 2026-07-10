@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from sentinel_anpr.application.dto.attribute_dto import VehicleAttributesResult
+from sentinel_anpr.application.dto.blockchain_dto import BlockchainEvidenceDto
 from sentinel_anpr.application.dto.risk_dto import RiskSignalDto
 from sentinel_anpr.application.dto.vehicle_dto import LookupStatus, VehicleRecordDto
 from sentinel_anpr.application.dto.vehicle_detection_dto import SelectedVehicleRegionDto
@@ -103,6 +104,7 @@ class RunVehicleVerificationWorkflowResult:
     pending_challans_count: int | None = None
     latest_violation: str | None = None
     vehicle_region_id: str | None = None
+    blockchain_evidence: BlockchainEvidenceDto | None = None
 
 
 @dataclass(frozen=True)

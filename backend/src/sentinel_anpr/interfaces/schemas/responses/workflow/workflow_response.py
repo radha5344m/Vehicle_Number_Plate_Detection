@@ -51,6 +51,17 @@ class RiskSignalData(BaseModel):
     detail: str
 
 
+class BlockchainEvidenceData(BaseModel):
+    """Blockchain evidence metadata."""
+
+    block_number: int
+    block_timestamp: datetime
+    current_hash: str
+    previous_hash: str
+    report_sha256_hash: str
+    integrity_verified: bool
+
+
 class DetectedVehicleData(BaseModel):
     """Detected vehicle bounding box."""
 
@@ -100,4 +111,5 @@ class VehicleVerificationWorkflowData(BaseModel):
     pending_challans_count: int | None = None
     latest_violation: str | None = None
     vehicle_region_id: str | None = None
+    blockchain_evidence: BlockchainEvidenceData | None = None
     investigations: list["VehicleVerificationWorkflowData"] | None = None

@@ -15,7 +15,10 @@ import traceback
 import uuid
 from datetime import UTC, datetime
 
-from sentinel_anpr.application.dto.attribute_dto import VehicleAttributesResult
+from sentinel_anpr.application.dto.blockchain_dto import AnchorEvidenceCommand, BlockchainEvidenceDto
+from sentinel_anpr.application.use_cases.blockchain.anchor_evidence_block_use_case import (
+    AnchorEvidenceBlockUseCase,
+)
 from sentinel_anpr.application.dto.history_dto import (
     RegistryScanSnapshot,
     SaveCompletedScanCommand,
@@ -117,6 +120,7 @@ class RunVisionVerificationWorkflowUseCase:
         lookup_challans_use_case: LookupChallansByRegistrationUseCase,
         logger: LoggingPort,
         workflow_progress: WorkflowProgressPort | None = None,
+        anchor_evidence_block_use_case: AnchorEvidenceBlockUseCase | None = None,
     ) -> None:
         self._upload = upload_vehicle_image_use_case
         self._vision = vision_ai_service
@@ -127,6 +131,7 @@ class RunVisionVerificationWorkflowUseCase:
         self._generate_report = generate_investigation_report_use_case
         self._logger = logger
         self._workflow_progress = workflow_progress
+        self._anchor_evidence = anchor_evidence_block_use_case
         self._attribute_comparison = AttributeComparisonPolicy()
         self._investigation_summary = InvestigationSummaryPolicy()
 
@@ -683,6 +688,35 @@ class RunVisionVerificationWorkflowUseCase:
             detail="Workflow Completed",
         )
 
+        blockchain_evidence = None
+        if self._anchor_evidence is not None and scan_id and report_id:
+            try:
+                anchor_result = self._anchor_evidence.execute(
+                    AnchorEvidenceCommand(
+                        investigation_id=scan_id,
+                        report_id=report_id,
+                        registration_number=detected_plate,
+                        officer_id=command.officer_id,
+                        report_command=report_command,
+                    )
+                )
+                block = anchor_result.block
+                blockchain_evidence = BlockchainEvidenceDto(
+                    block_number=block.block_number,
+                    block_timestamp=block.block_timestamp,
+                    current_hash=block.current_hash,
+                    previous_hash=block.previous_hash,
+                    report_sha256_hash=block.report_sha256_hash,
+                    integrity_verified=anchor_result.integrity_verified,
+                )
+            except Exception as exc:
+                self._logger.error(
+                    "evidence_block_anchor_failed",
+                    workflow_id=workflow_id,
+                    scan_id=scan_id,
+                    detail=str(exc),
+                )
+
         return RunVehicleVerificationWorkflowResult(
             status=WorkflowStatus.COMPLETED,
             workflow_id=workflow_id,
@@ -711,6 +745,7 @@ class RunVisionVerificationWorkflowUseCase:
             pending_challans_count=challan_summary.pending_challans_count,
             latest_violation=challan_summary.latest_violation,
             vehicle_region_id=command.vehicle_region_id,
+            blockchain_evidence=blockchain_evidence,
         )
 
     @staticmethod

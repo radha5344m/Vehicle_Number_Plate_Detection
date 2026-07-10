@@ -618,6 +618,36 @@ def build_container() -> AppContainer:
         context=challan_context,
     )
 
+    from sentinel_anpr.application.use_cases.blockchain.anchor_evidence_block_use_case import (
+        AnchorEvidenceBlockUseCase,
+    )
+    from sentinel_anpr.application.use_cases.blockchain.verify_investigation_integrity_use_case import (
+        VerifyInvestigationIntegrityUseCase,
+    )
+    from sentinel_anpr.infrastructure.blockchain.blockchain_service import BlockchainService
+    from sentinel_anpr.infrastructure.blockchain.investigation_report_command_rebuilder import (
+        InvestigationReportCommandRebuilder,
+    )
+    from sentinel_anpr.infrastructure.database.repositories.blockchain.sqlite_blockchain_repository import (
+        SqliteBlockchainRepository,
+    )
+
+    blockchain_repository = SqliteBlockchainRepository(session_factory=session_factory)
+    blockchain_service = BlockchainService(repository=blockchain_repository)
+    anchor_evidence_block_use_case = AnchorEvidenceBlockUseCase(
+        blockchain_service=blockchain_service,
+        logger=logger,
+    )
+    investigation_report_command_rebuilder = InvestigationReportCommandRebuilder(
+        session_factory=session_factory,
+        upload_storage_dir=settings.upload_storage_dir,
+    )
+    verify_investigation_integrity_use_case = VerifyInvestigationIntegrityUseCase(
+        blockchain_repository=blockchain_repository,
+        blockchain_service=blockchain_service,
+        report_command_rebuilder=investigation_report_command_rebuilder,
+    )
+
     run_vehicle_verification_workflow_use_case = RunVisionVerificationWorkflowUseCase(
         upload_vehicle_image_use_case=upload_vehicle_image_use_case,
         vision_ai_service=vision_ai_service,
@@ -628,6 +658,7 @@ def build_container() -> AppContainer:
         lookup_challans_use_case=lookup_challans_by_registration_use_case,
         logger=logger,
         workflow_progress=NoOpWorkflowProgressAdapter(),
+        anchor_evidence_block_use_case=anchor_evidence_block_use_case,
     )
     detect_vehicles_use_case = DetectVehiclesUseCase(
         scene_detection_service=intelligent_scene_detection_service,
@@ -739,5 +770,7 @@ def build_container() -> AppContainer:
         delete_challan_use_case=delete_challan_use_case,
         get_challan_analytics_use_case=get_challan_analytics_use_case,
         generate_challan_pdf_use_case=generate_challan_pdf_use_case,
+        anchor_evidence_block_use_case=anchor_evidence_block_use_case,
+        verify_investigation_integrity_use_case=verify_investigation_integrity_use_case,
         vision_ai_service=vision_ai_service,
     )
