@@ -89,6 +89,11 @@ from sentinel_anpr.infrastructure.adapters.workflow_progress_adapter import (
     NoOpWorkflowProgressAdapter,
 )
 from sentinel_anpr.infrastructure.ai.stub_vision_service import StubVisionService
+from sentinel_anpr.infrastructure.ai.stub_vehicle_detection_service import StubVehicleDetectionService
+from sentinel_anpr.infrastructure.ai.opencv_vehicle_detection_service import OpenCvVehicleDetectionService
+from sentinel_anpr.infrastructure.ai.stub_license_plate_detection_service import StubLicensePlateDetectionService
+from sentinel_anpr.infrastructure.ai.opencv_license_plate_detection_service import OpenCvLicensePlateDetectionService
+from sentinel_anpr.infrastructure.ai.intelligent_scene_detection_service import DefaultIntelligentSceneDetectionService
 from sentinel_anpr.infrastructure.database.init_demo_database import initialize_demo_database
 from sentinel_anpr.infrastructure.database.repositories.vehicles.sqlite_vehicle_repository import (
     SqliteVehicleRepository,
@@ -128,6 +133,12 @@ from sentinel_anpr.application.use_cases.analytics.get_analytics_overview_use_ca
 )
 from sentinel_anpr.application.use_cases.orchestration.run_vision_verification_workflow_use_case import (
     RunVisionVerificationWorkflowUseCase,
+)
+from sentinel_anpr.application.use_cases.orchestration.detect_vehicles_use_case import (
+    DetectVehiclesUseCase,
+)
+from sentinel_anpr.application.use_cases.orchestration.run_selected_vehicles_verification_workflow_use_case import (
+    RunSelectedVehiclesVerificationWorkflowUseCase,
 )
 from sentinel_anpr.application.use_cases.challans.challan_use_cases import (
     CancelChallanUseCase,
@@ -312,6 +323,46 @@ def _build_vision_ai_service(
     )
 
 
+def _build_vehicle_detection_service(*, settings: Settings, logger: LoggingPort):
+    """Select the vehicle detection provider from configuration."""
+    provider = (settings.vehicle_detection_provider or "opencv").strip().lower()
+    if provider == "stub":
+        service = StubVehicleDetectionService()
+    elif provider == "opencv":
+        service = OpenCvVehicleDetectionService()
+    else:
+        raise ValueError(
+            f"Unsupported vehicle_detection_provider '{settings.vehicle_detection_provider}'. "
+            "Expected 'opencv' or 'stub'."
+        )
+    logger.info(
+        "vehicle_detection_service_ready",
+        vehicle_detection_provider=provider,
+        vehicle_detection_service_type=type(service).__name__,
+    )
+    return service
+
+
+def _build_license_plate_detection_service(*, settings: Settings, logger: LoggingPort):
+    """Select the license plate detection provider from configuration."""
+    provider = (settings.vehicle_detection_provider or "opencv").strip().lower()
+    if provider == "stub":
+        service = StubLicensePlateDetectionService()
+    elif provider == "opencv":
+        service = OpenCvLicensePlateDetectionService()
+    else:
+        raise ValueError(
+            f"Unsupported vehicle_detection_provider '{settings.vehicle_detection_provider}'. "
+            "Expected 'opencv' or 'stub'."
+        )
+    logger.info(
+        "license_plate_detection_service_ready",
+        vehicle_detection_provider=provider,
+        license_plate_detection_service_type=type(service).__name__,
+    )
+    return service
+
+
 def build_container() -> AppContainer:
     """Composition root — wire concrete adapters to use cases."""
     load_env_file()
@@ -465,6 +516,16 @@ def build_container() -> AppContainer:
     )
 
     vision_ai_service = _build_vision_ai_service(settings=settings, logger=logger)
+    vehicle_detection_service = _build_vehicle_detection_service(settings=settings, logger=logger)
+    license_plate_detection_service = _build_license_plate_detection_service(
+        settings=settings,
+        logger=logger,
+    )
+    intelligent_scene_detection_service = DefaultIntelligentSceneDetectionService(
+        vehicle_detection_service=vehicle_detection_service,
+        license_plate_detection_service=license_plate_detection_service,
+        logger=logger,
+    )
 
     vehicle_repository = SqliteVehicleRepository(session_factory=session_factory)
     lookup_vehicle_use_case = LookupVehicleUseCase(vehicle_repository=vehicle_repository)
@@ -568,6 +629,17 @@ def build_container() -> AppContainer:
         logger=logger,
         workflow_progress=NoOpWorkflowProgressAdapter(),
     )
+    detect_vehicles_use_case = DetectVehiclesUseCase(
+        scene_detection_service=intelligent_scene_detection_service,
+        logger=logger,
+    )
+    run_selected_vehicles_verification_workflow_use_case = (
+        RunSelectedVehiclesVerificationWorkflowUseCase(
+            single_vehicle_workflow=run_vehicle_verification_workflow_use_case,
+            scene_detection_service=intelligent_scene_detection_service,
+            logger=logger,
+        )
+    )
 
     dashboard_data = SqliteDashboardDataAdapter(session_factory=session_factory)
     get_dashboard_summary = GetDashboardSummaryUseCase(dashboard_data=dashboard_data)
@@ -647,6 +719,10 @@ def build_container() -> AppContainer:
         export_investigation_reports_use_case=export_investigation_reports_use_case,
         get_analytics_overview_use_case=get_analytics_overview_use_case,
         run_vehicle_verification_workflow_use_case=run_vehicle_verification_workflow_use_case,
+        detect_vehicles_use_case=detect_vehicles_use_case,
+        run_selected_vehicles_verification_workflow_use_case=(
+            run_selected_vehicles_verification_workflow_use_case
+        ),
         get_dashboard_summary_use_case=get_dashboard_summary,
         get_recent_activity_use_case=get_recent_activity,
         get_executive_dashboard_use_case=get_executive_dashboard_use_case,

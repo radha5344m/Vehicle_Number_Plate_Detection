@@ -10,8 +10,9 @@ from sentinel_anpr.infrastructure.config.settings import get_settings
 
 @pytest.fixture(autouse=True)
 def use_stub_ai_adapters_in_tests(monkeypatch: pytest.MonkeyPatch):
-    """Use the deterministic stub vision service for tests (no API key)."""
+    """Use deterministic stub AI adapters for tests (no API key or model files)."""
     monkeypatch.setenv("SENTINEL_VISION_PROVIDER", "stub")
+    monkeypatch.setenv("SENTINEL_VEHICLE_DETECTION_PROVIDER", "stub")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

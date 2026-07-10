@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from sentinel_anpr.application.dto.workflow_dto import RunVehicleVerificationWorkflowResult
+from sentinel_anpr.application.dto.vehicle_detection_dto import DetectedVehicleDto, DetectVehiclesResult
+from sentinel_anpr.application.dto.workflow_dto import (
+    RunVehicleVerificationWorkflowBatchResult,
+    RunVehicleVerificationWorkflowResult,
+)
 from sentinel_anpr.interfaces.rest_api.v1.routes.vehicles.vehicle_handler import _vehicle_data
 from sentinel_anpr.interfaces.schemas.responses.attributes.attribute_extraction_response import (
     VehicleAttributesResponseData,
@@ -10,11 +14,73 @@ from sentinel_anpr.interfaces.schemas.responses.attributes.attribute_extraction_
 from sentinel_anpr.interfaces.schemas.responses.workflow.workflow_response import (
     AttributeComparisonData,
     AttributeComparisonItemData,
+    DetectedVehicleData,
     RiskSignalData,
+    VehicleDetectionData,
     VehicleVerificationWorkflowData,
     VerificationResultData,
     WorkflowStepData,
 )
+
+
+def map_detected_vehicle_to_response(vehicle: DetectedVehicleDto) -> DetectedVehicleData:
+    return DetectedVehicleData(
+        vehicle_id=vehicle.vehicle_id,
+        x=vehicle.x,
+        y=vehicle.y,
+        width=vehicle.width,
+        height=vehicle.height,
+        confidence=vehicle.confidence,
+        vehicle_type=vehicle.vehicle_type,
+    )
+
+
+def map_detection_result_to_response(result: DetectVehiclesResult) -> VehicleDetectionData:
+    return VehicleDetectionData(
+        vehicles=[map_detected_vehicle_to_response(vehicle) for vehicle in result.vehicles],
+    )
+
+
+def map_workflow_batch_result_to_response(
+    result: RunVehicleVerificationWorkflowBatchResult,
+) -> VehicleVerificationWorkflowData:
+    investigations = [map_workflow_result_to_response(item) for item in result.investigations]
+    if not investigations:
+        from datetime import UTC, datetime
+
+        return VehicleVerificationWorkflowData(
+            status="failed",
+            workflow_id=result.workflow_id,
+            steps=[],
+            registration_number=None,
+            vision_confidence=None,
+            vehicle_information=None,
+            vision_attributes=None,
+            attribute_comparison=None,
+            verification_result=None,
+            risk_score=None,
+            risk_level=None,
+            risk_explanation=None,
+            recommendation=None,
+            investigation_summary=None,
+            risk_signals=[],
+            scan_id=None,
+            report_id=None,
+            report_download_url=None,
+            failed_stage="vehicle_selection",
+            failure_message="No vehicles were selected for verification.",
+            total_duration_ms=None,
+            completed_at=datetime.now(UTC),
+            investigations=[],
+        )
+
+    primary = investigations[0]
+    return primary.model_copy(
+        update={
+            "workflow_id": result.workflow_id,
+            "investigations": investigations if len(investigations) > 1 else None,
+        }
+    )
 
 
 def map_workflow_result_to_response(
@@ -100,4 +166,5 @@ def map_workflow_result_to_response(
         outstanding_fine_inr=result.outstanding_fine_inr,
         pending_challans_count=result.pending_challans_count,
         latest_violation=result.latest_violation,
+        vehicle_region_id=result.vehicle_region_id,
     )

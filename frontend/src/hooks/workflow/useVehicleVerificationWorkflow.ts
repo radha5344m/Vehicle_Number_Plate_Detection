@@ -2,8 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { HttpError } from "@/services/api/httpClient";
 import { workflowService } from "@/services/workflowService";
 import type { VehicleVerificationWorkflowResult } from "@/types/api/workflow";
+import {
+  createManualRegion,
+  relabelRegions,
+  type VehicleRegion,
+} from "@/types/vehicleSelection";
 
-const VERIFYING_MESSAGE = "Verifying vehicle…";
+const VERIFYING_MESSAGE = "Running independent investigations for each rectangle…";
 
 function normalizeWorkflowResult(
   data: VehicleVerificationWorkflowResult,
@@ -18,114 +23,156 @@ function normalizeWorkflowResult(
   };
 }
 
+function extractInvestigationResults(
+  data: VehicleVerificationWorkflowResult,
+): VehicleVerificationWorkflowResult[] {
+  const normalized = normalizeWorkflowResult(data);
+  if (normalized.investigations && normalized.investigations.length > 0) {
+    return normalized.investigations.map((item) => normalizeWorkflowResult(item));
+  }
+  return [normalized];
+}
+
 interface UseVehicleVerificationWorkflowResult {
-  run: (vehicleImage: File, locationLabel?: string) => Promise<void>;
-  result: VehicleVerificationWorkflowResult | null;
+  verifyRectangles: (
+    vehicleImage: File,
+    regions: VehicleRegion[],
+    locationLabel?: string,
+  ) => Promise<void>;
+  prepareImage: () => void;
+  results: VehicleVerificationWorkflowResult[];
   loading: boolean;
   isVerifying: boolean;
   error: string | null;
   loadingMessage: string | null;
+  regions: VehicleRegion[];
+  selectedRegionId: string | null;
+  setRegions: (regions: VehicleRegion[]) => void;
+  setSelectedRegionId: (regionId: string | null) => void;
   reset: () => void;
 }
 
 export function useVehicleVerificationWorkflow(): UseVehicleVerificationWorkflowResult {
-  const [result, setResult] = useState<VehicleVerificationWorkflowResult | null>(null);
+  const [results, setResults] = useState<VehicleVerificationWorkflowResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [regions, setRegions] = useState<VehicleRegion[]>([]);
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
 
   const verificationActiveRef = useRef(false);
-  const startRequestAbortRef = useRef<AbortController | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
 
   const reset = useCallback(() => {
-    startRequestAbortRef.current?.abort();
-    startRequestAbortRef.current = null;
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
     verificationActiveRef.current = false;
-    setResult(null);
+    setResults([]);
     setLoading(false);
+    setError(null);
+    setRegions([]);
+    setSelectedRegionId(null);
+  }, []);
+
+  const prepareImage = useCallback(() => {
+    const initialRegion = createManualRegion(0);
+    const nextRegions = relabelRegions([initialRegion]);
+    setRegions(nextRegions);
+    setSelectedRegionId(initialRegion.vehicle_id);
+    setResults([]);
     setError(null);
   }, []);
 
   useEffect(() => {
     return () => {
-      startRequestAbortRef.current?.abort();
+      requestAbortRef.current?.abort();
       verificationActiveRef.current = false;
     };
   }, []);
 
-  const run = useCallback(async (vehicleImage: File, locationLabel?: string) => {
-    if (verificationActiveRef.current) {
-      return;
-    }
-
-    verificationActiveRef.current = true;
-    startRequestAbortRef.current?.abort();
-    const startAbort = new AbortController();
-    startRequestAbortRef.current = startAbort;
-
-    setResult(null);
-    setError(null);
-    setLoading(true);
-
-    try {
-      const data = await workflowService.startVehicleVerification(
-        vehicleImage,
-        locationLabel,
-        startAbort.signal,
-      );
-
-      if (startAbort.signal.aborted) {
+  const verifyRectangles = useCallback(
+    async (vehicleImage: File, rectangleRegions: VehicleRegion[], locationLabel?: string) => {
+      if (verificationActiveRef.current || rectangleRegions.length === 0) {
         return;
       }
 
-      if (data.status === "processing") {
-        throw new Error(
-          "Backend returned a processing response. Restart the backend (python main.py) and try again.",
-        );
-      }
+      verificationActiveRef.current = true;
+      requestAbortRef.current?.abort();
+      const abort = new AbortController();
+      requestAbortRef.current = abort;
 
-      setResult(normalizeWorkflowResult(data));
-      if (data.status === "failed") {
-        if (!data.failure_message && !data.registration_number) {
-          setError(
-            "Verification could not be completed. No registration number was detected.",
+      setResults([]);
+      setError(null);
+      setLoading(true);
+
+      try {
+        const data = await workflowService.startVehicleVerification(
+          vehicleImage,
+          locationLabel,
+          abort.signal,
+          rectangleRegions,
+        );
+
+        if (abort.signal.aborted) {
+          return;
+        }
+
+        if (data.status === "processing") {
+          throw new Error(
+            "Backend returned a processing response. Restart the backend (python main.py) and try again.",
           );
         }
-      } else if (data.status !== "completed" && !data.registration_number) {
-        setError(
-          data.failure_message ??
-            "Verification could not be completed. No registration number was detected.",
-        );
+
+        const investigations = extractInvestigationResults(data);
+        setResults(investigations);
+
+        const successCount = investigations.filter((item) => item.status === "completed").length;
+        if (successCount === 0) {
+          const firstFailure = investigations.find((item) => item.failure_message)?.failure_message;
+          setError(
+            firstFailure ?? "Investigation could not be completed for any rectangle.",
+          );
+          return;
+        }
+
+        setError(null);
+      } catch (err) {
+        if (abort.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
+
+        const message =
+          err instanceof HttpError
+            ? err.message
+            : err instanceof TypeError
+              ? "Cannot reach the backend — ensure it is running on port 8080 (python main.py)."
+              : err instanceof Error && err.message
+                ? err.message
+                : "Vehicle verification failed. Please try again.";
+        setError(message);
+        throw new Error(message);
+      } finally {
+        verificationActiveRef.current = false;
+        setLoading(false);
+        if (requestAbortRef.current === abort) {
+          requestAbortRef.current = null;
+        }
       }
-    } catch (err) {
-      if (startAbort.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
-        return;
-      }
-      const message =
-        err instanceof HttpError
-          ? err.message
-          : err instanceof TypeError
-            ? "Cannot reach the backend — ensure it is running on port 8080 (python main.py)."
-            : err instanceof Error && err.message
-              ? err.message
-              : "Vehicle verification failed. Please try again.";
-      setError(message);
-      throw new Error(message);
-    } finally {
-      verificationActiveRef.current = false;
-      setLoading(false);
-      if (startRequestAbortRef.current === startAbort) {
-        startRequestAbortRef.current = null;
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   return {
-    run,
-    result,
+    verifyRectangles,
+    prepareImage,
+    results,
     loading,
     isVerifying: loading,
     error,
     loadingMessage: loading ? VERIFYING_MESSAGE : null,
+    regions,
+    selectedRegionId,
+    setRegions,
+    setSelectedRegionId,
     reset,
   };
 }

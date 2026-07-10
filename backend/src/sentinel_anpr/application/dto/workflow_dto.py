@@ -7,6 +7,7 @@ from enum import StrEnum
 from sentinel_anpr.application.dto.attribute_dto import VehicleAttributesResult
 from sentinel_anpr.application.dto.risk_dto import RiskSignalDto
 from sentinel_anpr.application.dto.vehicle_dto import LookupStatus, VehicleRecordDto
+from sentinel_anpr.application.dto.vehicle_detection_dto import SelectedVehicleRegionDto
 
 
 class WorkflowStatus(StrEnum):
@@ -67,6 +68,8 @@ class RunVehicleVerificationWorkflowCommand:
     original_filename: str
     location_label: str | None = None
     correlation_id: str | None = None
+    selected_regions: tuple[SelectedVehicleRegionDto, ...] | None = None
+    vehicle_region_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -99,3 +102,12 @@ class RunVehicleVerificationWorkflowResult:
     outstanding_fine_inr: float | None = None
     pending_challans_count: int | None = None
     latest_violation: str | None = None
+    vehicle_region_id: str | None = None
+
+
+@dataclass(frozen=True)
+class RunVehicleVerificationWorkflowBatchResult:
+    """Batch verification outcome for multiple selected vehicle regions."""
+
+    workflow_id: str
+    investigations: tuple[RunVehicleVerificationWorkflowResult, ...]

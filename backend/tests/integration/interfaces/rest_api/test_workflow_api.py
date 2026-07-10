@@ -16,7 +16,7 @@ def _client() -> TestClient:
 
 
 def _vehicle_image_bytes() -> bytes:
-    image = Image.new("RGB", (960, 540), color=(30, 41, 59))
+    image = Image.new("RGB", (1280, 960), color=(30, 41, 59))
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG")
     return buffer.getvalue()
@@ -57,3 +57,45 @@ def test_vehicle_verification_workflow_completes_synchronously() -> None:
         assert data["report_download_url"]
         assert data["risk_level"] in {"low", "medium", "high", "critical"}
         assert len(data["steps"]) >= 6
+
+
+def test_detect_vehicles_endpoint_returns_bounding_boxes() -> None:
+    with _client() as client:
+        token = _login_token(client)
+        response = client.post(
+            "/v1/workflow/detect-vehicles",
+            headers={"Authorization": f"Bearer {token}"},
+            files={"vehicle_image": ("vehicle.jpg", _vehicle_image_bytes(), "image/jpeg")},
+        )
+        assert response.status_code == 200
+        vehicles = response.json()["data"]["vehicles"]
+        assert len(vehicles) >= 1
+        first = vehicles[0]
+        assert first["vehicle_id"]
+        assert 0 <= first["x"] <= 1
+        assert 0 <= first["y"] <= 1
+        assert first["width"] > 0
+        assert first["height"] > 0
+        assert first["vehicle_type"]
+
+
+def test_vehicle_verification_with_selected_regions_returns_independent_investigations() -> None:
+    with _client() as client:
+        token = _login_token(client)
+        selected_regions = (
+            '[{"vehicle_id":"vehicle-1","x":0.1,"y":0.1,"width":0.35,"height":0.5},'
+            '{"vehicle_id":"vehicle-2","x":0.55,"y":0.15,"width":0.3,"height":0.45}]'
+        )
+        response = client.post(
+            "/v1/workflow/vehicle-verification",
+            headers={"Authorization": f"Bearer {token}"},
+            data={"selected_regions": selected_regions},
+            files={"vehicle_image": ("vehicle.jpg", _vehicle_image_bytes(), "image/jpeg")},
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["investigations"] is not None
+        assert len(data["investigations"]) == 2
+        assert data["investigations"][0]["workflow_id"] != data["investigations"][1]["workflow_id"]
+        assert data["investigations"][0]["scan_id"]
+        assert data["investigations"][1]["scan_id"]

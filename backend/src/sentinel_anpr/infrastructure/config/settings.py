@@ -187,6 +187,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("HF_API_URL", "SENTINEL_HF_API_URL"),
     )
     hf_request_timeout_seconds: int = Field(default=60)
+    # Vehicle detection provider: "opencv" (MobileNet-SSD) or "stub" (tests/local).
+    vehicle_detection_provider: str = Field(default="opencv")
 
 
 @lru_cache

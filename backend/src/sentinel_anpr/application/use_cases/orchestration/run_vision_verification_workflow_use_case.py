@@ -710,6 +710,7 @@ class RunVisionVerificationWorkflowUseCase:
             outstanding_fine_inr=challan_summary.outstanding_fine_inr,
             pending_challans_count=challan_summary.pending_challans_count,
             latest_violation=challan_summary.latest_violation,
+            vehicle_region_id=command.vehicle_region_id,
         )
 
     @staticmethod

@@ -82,6 +82,8 @@ export interface VehicleVerificationWorkflowResult {
   outstanding_fine_inr?: number | null;
   pending_challans_count?: number | null;
   latest_violation?: string | null;
+  vehicle_region_id?: string | null;
+  investigations?: VehicleVerificationWorkflowResult[] | null;
 }
 
 export const WORKFLOW_STAGE_LABELS: Record<string, string> = {

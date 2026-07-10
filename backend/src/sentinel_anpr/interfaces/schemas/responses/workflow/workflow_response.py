@@ -51,6 +51,24 @@ class RiskSignalData(BaseModel):
     detail: str
 
 
+class DetectedVehicleData(BaseModel):
+    """Detected vehicle bounding box."""
+
+    vehicle_id: str
+    x: float
+    y: float
+    width: float
+    height: float
+    confidence: float
+    vehicle_type: str
+
+
+class VehicleDetectionData(BaseModel):
+    """Vehicle detection response payload."""
+
+    vehicles: list[DetectedVehicleData]
+
+
 class VehicleVerificationWorkflowData(BaseModel):
     """Complete end-to-end verification result."""
 
@@ -81,3 +99,5 @@ class VehicleVerificationWorkflowData(BaseModel):
     outstanding_fine_inr: float | None = None
     pending_challans_count: int | None = None
     latest_violation: str | None = None
+    vehicle_region_id: str | None = None
+    investigations: list["VehicleVerificationWorkflowData"] | None = None

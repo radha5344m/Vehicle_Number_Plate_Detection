@@ -7,6 +7,7 @@ import { useLiveCamera } from "@/hooks/camera/useLiveCamera";
 interface Props {
   disabled?: boolean;
   verifying?: boolean;
+  hideCapturedVerify?: boolean;
   onCapturedFile: (file: File) => void;
   onVerify: () => void;
   onSwitchToUpload: () => void;
@@ -17,6 +18,7 @@ interface Props {
 export function LiveCameraCapture({
   disabled = false,
   verifying = false,
+  hideCapturedVerify = false,
   onCapturedFile,
   onVerify,
   onSwitchToUpload,
@@ -143,17 +145,19 @@ export function LiveCameraCapture({
             >
               Retake
             </Button>
-            <Button
-              type="button"
-              size="lg"
-              icon={<ShieldCheck className="h-5 w-5" />}
-              loading={verifying}
-              disabled={disabled || verifying || !camera.capturedFile}
-              onClick={onVerify}
-              className="min-h-11 w-full sm:min-h-12 sm:w-auto sm:flex-none"
-            >
-              Verify Vehicle
-            </Button>
+            {!hideCapturedVerify && (
+              <Button
+                type="button"
+                size="lg"
+                icon={<ShieldCheck className="h-5 w-5" />}
+                loading={verifying}
+                disabled={disabled || verifying || !camera.capturedFile}
+                onClick={onVerify}
+                className="min-h-11 w-full sm:min-h-12 sm:w-auto sm:flex-none"
+              >
+                Verify Vehicle
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
