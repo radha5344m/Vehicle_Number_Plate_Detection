@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from sentinel_anpr.infrastructure.config.settings import get_settings, resolve_cors_origins
+from sentinel_anpr.infrastructure.config.settings import get_settings, resolve_cors_origins, resolve_cors_origin_regex
 from sentinel_anpr.interfaces.rest_api.app.lifespan import lifespan
 from sentinel_anpr.interfaces.rest_api.app.static_frontend import (
     register_api_root_route,
@@ -31,6 +31,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
     cors_origins = resolve_cors_origins(settings)
+    cors_origin_regex = resolve_cors_origin_regex(settings)
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
@@ -43,7 +44,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
-        allow_origin_regex=settings.cors_origin_regex,
+        allow_origin_regex=cors_origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

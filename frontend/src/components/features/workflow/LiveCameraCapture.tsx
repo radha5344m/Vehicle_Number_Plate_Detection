@@ -81,7 +81,7 @@ export function LiveCameraCapture({
             autoPlay
             playsInline
             muted
-            className="aspect-[4/3] w-full object-cover"
+            className="max-h-[70vh] w-full bg-black object-contain"
           />
           <div className="pointer-events-none absolute inset-0 border border-white/20">
             <div className="absolute inset-6 rounded-xl border-2 border-dashed border-white/50" />

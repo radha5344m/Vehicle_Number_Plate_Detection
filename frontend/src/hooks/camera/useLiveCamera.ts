@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { captureVideoFrameToFile, mapCameraError } from "@/utils/image/captureFrame";
+import { captureLiveCameraFrameToFile, mapCameraError } from "@/utils/image/captureFrame";
 import { validateImageFile } from "@/utils/image/validateImage";
 
 export type LiveCameraStatus = "idle" | "starting" | "live" | "captured" | "error";
@@ -93,16 +93,8 @@ export function useLiveCamera(options: UseLiveCameraOptions = {}): UseLiveCamera
         const constraints: MediaStreamConstraints = {
           audio: false,
           video: deviceId
-            ? {
-                deviceId: { exact: deviceId },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              }
-            : {
-                facingMode: { ideal: nextFacingMode },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              },
+            ? { deviceId: { exact: deviceId } }
+            : { facingMode: { ideal: nextFacingMode } },
         };
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -163,7 +155,7 @@ export function useLiveCamera(options: UseLiveCameraOptions = {}): UseLiveCamera
     }
 
     try {
-      const file = await captureVideoFrameToFile(video);
+      const file = await captureLiveCameraFrameToFile(video, streamRef.current);
       const validation = await validateImageFile(file);
       if (!validation.valid) {
         setErrorCode("capture_failed");

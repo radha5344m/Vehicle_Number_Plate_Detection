@@ -72,7 +72,22 @@ Redeploy Vercel after saving env vars.
 
 ### CORS error fix
 
-If you see `blocked by CORS policy` / `No 'Access-Control-Allow-Origin' header`, the Render backend is not allowing your Vercel origin. Add `SENTINEL_CORS_ORIGINS` on Render exactly as above and redeploy.
+If you see `blocked by CORS policy` / `No 'Access-Control-Allow-Origin' header`, the Render backend is not allowing your Vercel origin.
+
+**Production Vercel URL** — add to Render:
+
+```
+SENTINEL_CORS_ORIGINS=https://vehicle-number-plate-detection-rho.vercel.app
+SENTINEL_FRONTEND_URL=https://vehicle-number-plate-detection-rho.vercel.app
+```
+
+**Vercel preview URLs** (branch deploys like `vehicle-number-plate-detect-git-…-vercel.app`) also need CORS. Add:
+
+```
+SENTINEL_CORS_ORIGIN_REGEX=https://vehicle-number-plate-detect.*\.vercel\.app
+```
+
+Redeploy the Render service after saving env vars.
 
 ## Option B (generic) — Split frontend + backend
 

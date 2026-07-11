@@ -160,6 +160,25 @@ def resolve_cors_origins(settings: "Settings | None" = None) -> list[str]:
     return origins
 
 
+_DEFAULT_VERCEL_CORS_ORIGIN_REGEX = r"https://vehicle-number-plate-detect.*\.vercel\.app"
+
+
+def resolve_cors_origin_regex(settings: "Settings | None" = None) -> str | None:
+    """Return the CORS origin regex, with a Vercel preview default in production."""
+    if settings is None:
+        settings = get_settings()
+
+    configured = (settings.cors_origin_regex or "").strip()
+    if configured:
+        return configured
+
+    if settings.env.strip().lower() == "production" and settings.frontend_url:
+        frontend_origin = settings.frontend_url.strip().rstrip("/")
+        if frontend_origin.endswith(".vercel.app"):
+            return _DEFAULT_VERCEL_CORS_ORIGIN_REGEX
+    return None
+
+
 class Settings(BaseSettings):
     """Load configuration from environment variables and optional .env file."""
 
