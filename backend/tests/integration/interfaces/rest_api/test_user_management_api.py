@@ -196,3 +196,104 @@ def test_user_ids_are_unique_across_multiple_creates() -> None:
             assert response.status_code == 201
             user_ids.append(response.json()["data"]["user"]["user_id"])
         assert len(set(user_ids)) == 2
+
+
+def test_super_admin_can_reset_station_admin_password_with_audit_fields() -> None:
+    with _client() as client:
+        admin = _login(client, "superadmin", "Admin@123")
+        headers = {"Authorization": f"Bearer {admin['access_token']}"}
+        token = uuid.uuid4().hex[:8]
+        email = f"stationadmin{token}@sentinelanpr.ai"
+
+        create = client.post(
+            "/v1/users",
+            headers=headers,
+            json={
+                "first_name": "Reset",
+                "last_name": "Target",
+                "email": email,
+                "rank": "Inspector",
+                "role": "STATION_ADMIN",
+                "police_station": "Markapur Town",
+                "district": "Prakasam",
+                "status": "active",
+            },
+        )
+        assert create.status_code == 201
+        officer_id = create.json()["data"]["user"]["officer_id"]
+        username = create.json()["data"]["user"]["username"]
+
+        reset = client.post(
+            f"/v1/users/station-admins/{officer_id}/reset-password",
+            headers=headers,
+            json={"new_password": "ResetPass@456", "confirm_password": "ResetPass@456"},
+        )
+        assert reset.status_code == 200
+        data = reset.json()["data"]
+        assert data["temporary_password"] is None
+        assert data["password_change_required"] is True
+
+        login = client.post(
+            "/v1/auth/login",
+            json={"identifier": username, "password": "ResetPass@456"},
+        )
+        assert login.status_code == 200
+
+
+def test_station_admin_cannot_reset_another_station_admin_password() -> None:
+    with _client() as client:
+        super_admin = _login(client, "superadmin", "Admin@123")
+        super_headers = {"Authorization": f"Bearer {super_admin['access_token']}"}
+        token = uuid.uuid4().hex[:8]
+        email = f"peeradmin{token}@sentinelanpr.ai"
+
+        create_target = client.post(
+            "/v1/users",
+            headers=super_headers,
+            json={
+                "first_name": "Peer",
+                "last_name": "Admin",
+                "email": email,
+                "rank": "Inspector",
+                "role": "STATION_ADMIN",
+                "police_station": "Markapur Town",
+                "district": "Prakasam",
+                "status": "active",
+            },
+        )
+        assert create_target.status_code == 201
+        target_officer_id = create_target.json()["data"]["user"]["officer_id"]
+
+        actor_email = f"actoradmin{token}@sentinelanpr.ai"
+        create_actor = client.post(
+            "/v1/users",
+            headers=super_headers,
+            json={
+                "first_name": "Actor",
+                "last_name": "Admin",
+                "email": actor_email,
+                "rank": "Inspector",
+                "role": "STATION_ADMIN",
+                "police_station": "Ongole Rural",
+                "district": "Prakasam",
+                "status": "active",
+            },
+        )
+        assert create_actor.status_code == 201
+        actor_data = create_actor.json()["data"]
+        actor_username = actor_data["user"]["username"]
+        actor_password = actor_data["temporary_password"]
+        activate = client.post(
+            f"/v1/users/{actor_data['user']['officer_id']}/activate",
+            headers=super_headers,
+        )
+        assert activate.status_code == 200
+
+        station_admin = _login(client, actor_username, actor_password)
+        station_headers = {"Authorization": f"Bearer {station_admin['access_token']}"}
+        response = client.post(
+            f"/v1/users/station-admins/{target_officer_id}/reset-password",
+            headers=station_headers,
+            json={"new_password": "Blocked@1234", "confirm_password": "Blocked@1234"},
+        )
+        assert response.status_code == 403

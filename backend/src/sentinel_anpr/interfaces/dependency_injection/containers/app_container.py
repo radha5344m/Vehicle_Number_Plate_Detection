@@ -19,6 +19,7 @@ from sentinel_anpr.application.use_cases.authentication.user_management_use_case
     ChangeUserStatusUseCase,
     CreateUserUseCase,
     QueryUsersUseCase,
+    ResetStationAdminPasswordUseCase,
     ResetUserPasswordUseCase,
     SoftDeleteUserUseCase,
     UpdateUserUseCase,
@@ -150,6 +151,7 @@ class AppContainer:
     update_user_use_case: UpdateUserUseCase
     change_user_status_use_case: ChangeUserStatusUseCase
     reset_user_password_use_case: ResetUserPasswordUseCase
+    reset_station_admin_password_use_case: ResetStationAdminPasswordUseCase
     soft_delete_user_use_case: SoftDeleteUserUseCase
     query_stations_use_case: QueryStationsUseCase
     get_station_use_case: GetStationUseCase

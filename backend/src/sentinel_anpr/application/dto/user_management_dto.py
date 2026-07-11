@@ -122,6 +122,13 @@ class ResetUserPasswordCommand:
 
 
 @dataclass(frozen=True)
+class ResetStationAdminPasswordCommand:
+    officer_id: str
+    new_password: str
+    confirm_password: str
+
+
+@dataclass(frozen=True)
 class UserMutationResult:
     user: UserDetailDto
     temporary_password: str | None = None

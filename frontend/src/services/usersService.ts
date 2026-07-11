@@ -4,6 +4,7 @@ import type {
   ActionMessage,
   CreateUserRequest,
   ResetPasswordRequest,
+  ResetStationAdminPasswordRequest,
   UpdateUserRequest,
   UserFilters,
   UserMutationResult,
@@ -50,6 +51,13 @@ export const usersService = {
 
   resetPassword(officerId: string, body: ResetPasswordRequest = {}): Promise<UserMutationResult> {
     return postApiData<UserMutationResult>(`/v1/users/${officerId}/reset-password`, body);
+  },
+
+  resetStationAdminPassword(
+    officerId: string,
+    body: ResetStationAdminPasswordRequest,
+  ): Promise<UserMutationResult> {
+    return postApiData<UserMutationResult>(`/v1/users/station-admins/${officerId}/reset-password`, body);
   },
 
   delete(officerId: string): Promise<ActionMessage> {

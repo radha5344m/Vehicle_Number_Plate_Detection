@@ -8,11 +8,16 @@ from sentinel_anpr.application.dto.auth_dto import AuthPrincipal
 from sentinel_anpr.application.dto.user_management_dto import (
     CreateUserCommand,
     QueryUsersResult,
+    ResetStationAdminPasswordCommand,
     ResetUserPasswordCommand,
     UpdateUserCommand,
     UserFilters,
     UserMutationResult,
     UserStatusChangeCommand,
+)
+from sentinel_anpr.application.ports.outbound.logging_port import LoggingPort
+from sentinel_anpr.application.ports.outbound.officer_activity_repository_port import (
+    OfficerActivityRepositoryPort,
 )
 from sentinel_anpr.application.ports.outbound.password_hasher_port import PasswordHasherPort
 from sentinel_anpr.application.ports.outbound.user_identity_sequence_port import UserIdentitySequencePort
@@ -221,3 +226,77 @@ class SoftDeleteUserUseCase:
     def execute(self, principal: AuthPrincipal, officer_id: str) -> None:
         ensure_super_admin(principal)
         self._repository.soft_delete_user(officer_id)
+
+
+class ResetStationAdminPasswordUseCase:
+    """Allow Super Admin to reset a Police Station Admin password with audit logging."""
+
+    def __init__(
+        self,
+        repository: UserManagementRepositoryPort,
+        password_hasher: PasswordHasherPort,
+        officer_activity_repository: OfficerActivityRepositoryPort,
+        logger: LoggingPort,
+    ) -> None:
+        self._repository = repository
+        self._password_hasher = password_hasher
+        self._officer_activity = officer_activity_repository
+        self._logger = logger
+
+    def execute(
+        self,
+        principal: AuthPrincipal,
+        command: ResetStationAdminPasswordCommand,
+    ) -> UserMutationResult:
+        from datetime import UTC, datetime
+
+        from sentinel_anpr.application.dto.persistence_dto import SaveOfficerActivityCommand
+
+        ensure_super_admin(principal)
+        if command.new_password != command.confirm_password:
+            raise ValueError("Password and Confirm Password must match.")
+
+        user = self._repository.get_user(command.officer_id)
+        if user is None:
+            raise LookupError("User not found")
+        if user.role != "STATION_ADMIN":
+            raise ValueError("Only Police Station Admin passwords can be reset through this action.")
+
+        password_hash = self._password_hasher.hash(command.new_password)
+        self._repository.reset_password(
+            ResetUserPasswordCommand(officer_id=command.officer_id, new_password=command.new_password),
+            password_hash,
+            password_change_required=True,
+        )
+
+        occurred_at = datetime.now(UTC)
+        self._officer_activity.save_activities(
+            (
+                SaveOfficerActivityCommand(
+                    officer_id=user.officer_id,
+                    officer_name=user.full_name,
+                    scan_id=None,
+                    activity_type="PASSWORD_RESET",
+                    description="Password reset by Super Admin",
+                    status="completed",
+                    occurred_at=occurred_at,
+                    correlation_id=principal.officer_id,
+                ),
+            )
+        )
+        self._logger.info(
+            "station_admin_password_reset",
+            super_admin_id=principal.officer_id,
+            station_admin_id=user.officer_id,
+            action="PASSWORD_RESET",
+            occurred_at=occurred_at.isoformat(),
+        )
+
+        updated_user = self._repository.get_user(command.officer_id)
+        if updated_user is None:
+            raise LookupError("User not found")
+        return UserMutationResult(
+            user=updated_user,
+            temporary_password=None,
+            password_change_required=True,
+        )

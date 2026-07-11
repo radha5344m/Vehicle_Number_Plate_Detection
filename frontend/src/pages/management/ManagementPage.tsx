@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { StationManagementPanel } from "@/components/features/stations/StationManagementPanel";
 import { StationsFiltersBar } from "@/components/features/stations/StationsFiltersBar";
 import { StationsTable } from "@/components/features/stations/StationsTable";
+import { StationAdminResetPasswordDialog } from "@/components/features/users/StationAdminResetPasswordDialog";
 import { UserCredentialsSuccessDialog } from "@/components/features/users/UserCredentialsSuccessDialog";
 import { UserManagementPanel } from "@/components/features/users/UserManagementPanel";
 import { UsersFiltersBar } from "@/components/features/users/UsersFiltersBar";
@@ -43,7 +44,7 @@ const STATION_FILTERS = {
   sort_desc: true,
 } as const;
 
-type TabKey = "users" | "stations";
+type TabKey = "users" | "station_admins" | "stations";
 
 type UserDialogStep = "role" | "form";
 
@@ -79,12 +80,14 @@ export function ManagementPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [credentialsDialog, setCredentialsDialog] = useState<CredentialsDialogState | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserItem | null>(null);
 
   const canManageUsers = hasPermission("users");
   const canManageStations = hasPermission("stations");
   const isSuperAdmin = hasRole("SUPER_ADMIN");
 
   const users = useUsers(USER_FILTERS, isSuperAdmin);
+  const stationAdmins = useUsers({ ...USER_FILTERS, role: "STATION_ADMIN" }, isSuperAdmin);
   const stations = useStations(STATION_FILTERS);
 
   const stationOptions = useMemo(
@@ -141,6 +144,11 @@ export function ManagementPage() {
   }
 
   async function handleAdminResetPassword(user: UserItem) {
+    if (user.role === "STATION_ADMIN") {
+      setResetPasswordUser(user);
+      return;
+    }
+
     if (
       !window.confirm(
         `Generate a new temporary password for ${user.full_name}? The previous password will stop working immediately.`,
@@ -160,6 +168,18 @@ export function ManagementPage() {
         mode: "reset",
       });
     }
+  }
+
+  async function handleStationAdminPasswordReset(newPassword: string, confirmPassword: string) {
+    if (!resetPasswordUser) return;
+    await usersService.resetStationAdminPassword(resetPasswordUser.officer_id, {
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    });
+    users.refresh();
+    stationAdmins.refresh();
+    setResetPasswordUser(null);
+    setActionSuccess("Password reset successfully.");
   }
 
   async function handleToggleUser(user: UserItem) {
@@ -296,6 +316,13 @@ export function ManagementPage() {
             Users
           </Button>
           <Button
+            variant={activeTab === "station_admins" ? "primary" : "secondary"}
+            onClick={() => setActiveTab("station_admins")}
+            icon={<Users className="h-4 w-4" />}
+          >
+            Station Admins
+          </Button>
+          <Button
             variant={activeTab === "stations" ? "primary" : "secondary"}
             onClick={() => setActiveTab("stations")}
             icon={<Building2 className="h-4 w-4" />}
@@ -321,6 +348,14 @@ export function ManagementPage() {
             temporaryPassword={credentialsDialog.temporaryPassword}
             mode={credentialsDialog.mode}
             onClose={() => setCredentialsDialog(null)}
+          />
+        )}
+
+        {resetPasswordUser && (
+          <StationAdminResetPasswordDialog
+            user={resetPasswordUser}
+            onClose={() => setResetPasswordUser(null)}
+            onSubmit={handleStationAdminPasswordReset}
           />
         )}
 
@@ -462,6 +497,56 @@ export function ManagementPage() {
                 onToggleStatus={(station) => void handleToggleStation(station)}
                 onDelete={(station) => void handleDeleteStation(station)}
                 canManage={canManageStations}
+              />
+            )}
+          </div>
+        )}
+
+        {activeTab === "station_admins" && (
+          <div className="space-y-6">
+            {stationAdmins.data && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <Card>
+                  <p className="text-sm text-slate-500">Station Admins</p>
+                  <p className="mt-2 text-3xl font-bold text-slate-900">{stationAdmins.data.summary.station_admins}</p>
+                </Card>
+                <Card>
+                  <p className="text-sm text-slate-500">Listed In This View</p>
+                  <p className="mt-2 text-3xl font-bold text-slate-900">{stationAdmins.data.pagination.total_items}</p>
+                </Card>
+                <Card>
+                  <p className="text-sm text-slate-500">Active In Page</p>
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
+                    {stationAdmins.data.items.filter((item) => item.status === "active").length}
+                  </p>
+                </Card>
+              </div>
+            )}
+
+            <UsersFiltersBar
+              filters={stationAdmins.filters}
+              onApply={(next) => stationAdmins.setFilters({ ...next, role: "STATION_ADMIN" })}
+              onReset={() => stationAdmins.setFilters({ ...USER_FILTERS, role: "STATION_ADMIN" })}
+            />
+
+            {stationAdmins.loading && <LoadingState label="Loading station admins..." fullHeight />}
+            {stationAdmins.error && !stationAdmins.loading && (
+              <Alert variant="warning" title="Unable to Load Station Admins">
+                {stationAdmins.error}
+              </Alert>
+            )}
+            {stationAdmins.data && !stationAdmins.loading && (
+              <UsersTable
+                items={stationAdmins.data.items}
+                onEdit={(user) => {
+                  setSelectedUser(user);
+                  setUserMode("edit");
+                  setActiveTab("users");
+                }}
+                onResetPassword={(user) => setResetPasswordUser(user)}
+                onToggleStatus={(user) => void handleToggleUser(user)}
+                onDelete={(user) => void handleDeleteUser(user)}
+                canManage={canManageUsers}
               />
             )}
           </div>

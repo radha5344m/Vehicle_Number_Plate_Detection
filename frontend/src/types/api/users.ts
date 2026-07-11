@@ -83,6 +83,11 @@ export interface ResetPasswordRequest {
   new_password?: string;
 }
 
+export interface ResetStationAdminPasswordRequest {
+  new_password: string;
+  confirm_password: string;
+}
+
 export interface UserMutationResult {
   user: UserItem;
   temporary_password?: string | null;

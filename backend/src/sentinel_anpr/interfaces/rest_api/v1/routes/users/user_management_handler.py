@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sentinel_anpr.application.dto.auth_dto import AuthPrincipal
 from sentinel_anpr.application.dto.user_management_dto import (
     CreateUserCommand,
+    ResetStationAdminPasswordCommand,
     ResetUserPasswordCommand,
     UpdateUserCommand,
     UserFilters,
@@ -16,6 +17,7 @@ from sentinel_anpr.application.use_cases.authentication.user_management_use_case
     ChangeUserStatusUseCase,
     CreateUserUseCase,
     QueryUsersUseCase,
+    ResetStationAdminPasswordUseCase,
     ResetUserPasswordUseCase,
     SoftDeleteUserUseCase,
     UpdateUserUseCase,
@@ -24,6 +26,7 @@ from sentinel_anpr.interfaces.rest_api.v1.dependencies.auth import get_current_p
 from sentinel_anpr.interfaces.schemas.requests.users.user_management_request import (
     CreateUserRequest,
     ResetPasswordRequest,
+    ResetStationAdminPasswordRequest,
     UpdateUserRequest,
 )
 from sentinel_anpr.interfaces.schemas.responses.common.envelope import ApiResponse, ResponseMeta
@@ -213,6 +216,40 @@ def deactivate_user(
 ) -> ApiResponse[UserMutationData]:
     use_case: ChangeUserStatusUseCase = request.app.state.container.change_user_status_use_case
     result = use_case.execute(principal, UserStatusChangeCommand(officer_id=officer_id, status="inactive"))
+    correlation_id = getattr(request.state, "correlation_id", None)
+    return ApiResponse(
+        data=UserMutationData(
+            user=_map_user(result.user),
+            temporary_password=result.temporary_password,
+            password_change_required=result.password_change_required,
+        ),
+        meta=ResponseMeta(correlation_id=correlation_id),
+    )
+
+
+@router.post("/station-admins/{officer_id}/reset-password", response_model=ApiResponse[UserMutationData])
+def reset_station_admin_password(
+    request: Request,
+    officer_id: str,
+    body: ResetStationAdminPasswordRequest,
+    principal: AuthPrincipal = Depends(get_current_principal),
+) -> ApiResponse[UserMutationData]:
+    use_case: ResetStationAdminPasswordUseCase = (
+        request.app.state.container.reset_station_admin_password_use_case
+    )
+    try:
+        result = use_case.execute(
+            principal,
+            ResetStationAdminPasswordCommand(
+                officer_id=officer_id,
+                new_password=body.new_password,
+                confirm_password=body.confirm_password,
+            ),
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="User not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     correlation_id = getattr(request.state, "correlation_id", None)
     return ApiResponse(
         data=UserMutationData(

@@ -13,6 +13,7 @@ from sentinel_anpr.application.use_cases.authentication.user_management_use_case
     ChangeUserStatusUseCase,
     CreateUserUseCase,
     QueryUsersUseCase,
+    ResetStationAdminPasswordUseCase,
     ResetUserPasswordUseCase,
     SoftDeleteUserUseCase,
     UpdateUserUseCase,
@@ -642,6 +643,12 @@ def build_container() -> AppContainer:
     verification_repository = SqliteVerificationResultRepository(session_factory=session_factory)
     risk_assessment_repository = SqliteRiskAssessmentRepository(session_factory=session_factory)
     officer_activity_repository = SqliteOfficerActivityRepository(session_factory=session_factory)
+    reset_station_admin_password_use_case = ResetStationAdminPasswordUseCase(
+        repository=user_management_repository,
+        password_hasher=password_hasher,
+        officer_activity_repository=officer_activity_repository,
+        logger=logger,
+    )
     dashboard_snapshot_repository = SqliteDashboardSnapshotRepository(
         session_factory=session_factory
     )
@@ -788,6 +795,7 @@ def build_container() -> AppContainer:
         update_user_use_case=update_user_use_case,
         change_user_status_use_case=change_user_status_use_case,
         reset_user_password_use_case=reset_user_password_use_case,
+        reset_station_admin_password_use_case=reset_station_admin_password_use_case,
         soft_delete_user_use_case=soft_delete_user_use_case,
         query_stations_use_case=query_stations_use_case,
         get_station_use_case=get_station_use_case,
