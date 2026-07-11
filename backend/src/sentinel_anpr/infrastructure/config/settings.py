@@ -13,6 +13,8 @@ _BACKEND_DIR = Path(__file__).resolve().parents[4]
 _ENV_FILE = _BACKEND_DIR / ".env"
 _DEFAULT_HF_MODEL = "google/gemma-3-4b-it:deepinfra"
 _DEFAULT_HF_API_URL = "https://router.huggingface.co/v1/chat/completions"
+_DEFAULT_SARVAM_API_URL = "https://api.sarvam.ai/v1/chat/completions"
+_DEFAULT_SARVAM_MODEL = "sarvam-30b"
 
 
 def get_backend_dir() -> Path:
@@ -65,6 +67,25 @@ def resolve_hf_token(settings: "Settings | None" = None) -> str | None:
 def hf_token_exists(settings: "Settings | None" = None) -> bool:
     """Return True when a non-empty Hugging Face token is configured."""
     return bool(resolve_hf_token(settings))
+
+
+def resolve_sarvam_api_key(settings: "Settings | None" = None) -> str | None:
+    """Resolve the Sarvam API key from backend/.env, Settings, then process env."""
+    if settings is None:
+        settings = get_settings()
+
+    candidates: list[str | None] = []
+    if _ENV_FILE.is_file():
+        candidates.append(dotenv_values(_ENV_FILE).get("SARVAM_API_KEY"))
+    candidates.extend([settings.sarvam_api_key, os.getenv("SARVAM_API_KEY")])
+
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        normalized = str(candidate).strip().strip('"').strip("'")
+        if normalized:
+            return normalized
+    return None
 
 
 def resolve_hf_api_url(
@@ -189,6 +210,21 @@ class Settings(BaseSettings):
     hf_request_timeout_seconds: int = Field(default=60)
     # Vehicle detection provider: "opencv" (MobileNet-SSD) or "stub" (tests/local).
     vehicle_detection_provider: str = Field(default="opencv")
+    # Chat assistant provider: "sarvam" (Sarvam AI API) or "stub" (local/tests).
+    chat_provider: str = Field(default="sarvam")
+    sarvam_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SARVAM_API_KEY", "SENTINEL_SARVAM_API_KEY"),
+    )
+    sarvam_api_url: str = Field(
+        default=_DEFAULT_SARVAM_API_URL,
+        validation_alias=AliasChoices("SARVAM_API_URL", "SENTINEL_SARVAM_API_URL"),
+    )
+    sarvam_model: str = Field(
+        default=_DEFAULT_SARVAM_MODEL,
+        validation_alias=AliasChoices("SARVAM_MODEL", "SENTINEL_SARVAM_MODEL"),
+    )
+    sarvam_request_timeout_seconds: int = Field(default=60)
 
 
 @lru_cache

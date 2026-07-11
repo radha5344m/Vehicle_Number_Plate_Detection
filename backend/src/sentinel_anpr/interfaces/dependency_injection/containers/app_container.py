@@ -53,6 +53,9 @@ from sentinel_anpr.application.use_cases.blockchain.anchor_evidence_block_use_ca
 from sentinel_anpr.application.use_cases.blockchain.verify_investigation_integrity_use_case import (
     VerifyInvestigationIntegrityUseCase,
 )
+from sentinel_anpr.application.use_cases.chat.send_chat_message_use_case import (
+    SendChatMessageUseCase,
+)
 from sentinel_anpr.application.use_cases.authentication.police_officer_portal_use_cases import (
     ChangePoliceOfficerPasswordUseCase,
     GetPoliceOfficerDashboardUseCase,
@@ -202,4 +205,5 @@ class AppContainer:
     generate_challan_pdf_use_case: GenerateChallanPdfUseCase
     anchor_evidence_block_use_case: AnchorEvidenceBlockUseCase
     verify_investigation_integrity_use_case: VerifyInvestigationIntegrityUseCase
+    send_chat_message_use_case: SendChatMessageUseCase
     vision_ai_service: VisionAiService | None = None

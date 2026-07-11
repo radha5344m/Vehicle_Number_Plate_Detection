@@ -15,6 +15,7 @@ import traceback
 import uuid
 from datetime import UTC, datetime
 
+from sentinel_anpr.application.dto.attribute_dto import VehicleAttributesResult
 from sentinel_anpr.application.dto.blockchain_dto import AnchorEvidenceCommand, BlockchainEvidenceDto
 from sentinel_anpr.application.use_cases.blockchain.anchor_evidence_block_use_case import (
     AnchorEvidenceBlockUseCase,

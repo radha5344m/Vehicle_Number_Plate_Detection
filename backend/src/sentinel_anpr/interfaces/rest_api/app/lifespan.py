@@ -9,10 +9,9 @@ from sentinel_anpr.interfaces.dependency_injection.wiring.bootstrap import build
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def     lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup: wire DI container. Shutdown: dispose database engine."""
-    existing = getattr(app.state, "container", None)
-    container = existing or build_container()
+    container = build_container()
     app.state.container = container
     yield
     container.engine.dispose()

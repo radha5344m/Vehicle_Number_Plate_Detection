@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3,
   Bell,
@@ -20,6 +21,7 @@ import { hasPermission, hasRole } from "@/lib/rbac";
 import { PATHS } from "@/routes/paths";
 import { getStoredOfficer } from "@/stores/authStore";
 import { useAuth } from "@/hooks/auth/useAuth";
+import { FloatingChatAssistant } from "@/components/features/chat/FloatingChatAssistant";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -278,6 +280,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         <main className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8">{children}</main>
       </div>
+      <FloatingChatAssistant />
     </div>
   );
 }

@@ -72,6 +72,7 @@ from sentinel_anpr.infrastructure.config.settings import (
     reload_settings,
     resolve_hf_api_url,
     resolve_hf_token,
+    resolve_sarvam_api_key,
     validate_vision_configuration,
 )
 from sentinel_anpr.infrastructure.authentication.jwt.jwt_token_provider import JwtTokenProvider
@@ -83,8 +84,12 @@ from sentinel_anpr.infrastructure.authentication.stores.sqlite_credential_store 
     SqliteCredentialStore,
 )
 from sentinel_anpr.application.ports.outbound.logging_port import LoggingPort
+from sentinel_anpr.application.ports.outbound.chat_service_port import ChatServicePort
 from sentinel_anpr.application.ports.vision_ai_service import VisionAiService
 from sentinel_anpr.infrastructure.ai.huggingface_vision_service import HuggingFaceVisionService
+from sentinel_anpr.infrastructure.ai.chat_service_provider import ChatServiceProvider
+from sentinel_anpr.infrastructure.ai.sarvam_chat_service import SarvamChatService
+from sentinel_anpr.infrastructure.ai.stub_chat_service import StubChatService
 from sentinel_anpr.infrastructure.adapters.workflow_progress_adapter import (
     NoOpWorkflowProgressAdapter,
 )
@@ -323,6 +328,64 @@ def _build_vision_ai_service(
     )
 
 
+def _build_chat_service(*, settings: Settings, logger: LoggingPort) -> ChatServicePort:
+    """Select the chat assistant provider from configuration."""
+    provider = (settings.chat_provider or "sarvam").strip().lower()
+    api_key = resolve_sarvam_api_key(settings)
+
+    logger.info(
+        "chat_service_configuration",
+        chat_provider=provider,
+        sarvam_model=settings.sarvam_model,
+        sarvam_api_url=settings.sarvam_api_url,
+        sarvam_api_key_exists=bool(api_key),
+    )
+
+    if provider == "sarvam":
+        if not api_key:
+            if settings.env.strip().lower() == "production":
+                raise RuntimeError(
+                    "SARVAM_API_KEY is required when SENTINEL_CHAT_PROVIDER=sarvam in production."
+                )
+            logger.warning(
+                "chat_service_stub_fallback",
+                detail="Sarvam API key missing; using stub chat assistant.",
+            )
+            service = StubChatService(model="stub-assistant")
+            logger.info(
+                "chat_service_ready",
+                chat_service_type=type(service).__name__,
+                chat_model=service.model_name,
+            )
+            return service
+        service = SarvamChatService(
+            api_key=api_key,
+            api_url=settings.sarvam_api_url,
+            model=settings.sarvam_model,
+            request_timeout_seconds=settings.sarvam_request_timeout_seconds,
+            logger=logger,
+        )
+        logger.info(
+            "chat_service_ready",
+            chat_service_type=type(service).__name__,
+            chat_model=service.model_name,
+        )
+        return service
+
+    if provider == "stub":
+        service = StubChatService(model="stub-assistant")
+        logger.info("chat_service_ready", chat_service_type=type(service).__name__, chat_model=service.model_name)
+        return service
+
+    raise ValueError(
+        f"Unsupported chat_provider '{settings.chat_provider}'. Expected 'sarvam' or 'stub'."
+    )
+
+
+def _build_chat_service_provider(*, logger: LoggingPort) -> ChatServiceProvider:
+    return ChatServiceProvider(build_chat_service=_build_chat_service, logger=logger)
+
+
 def _build_vehicle_detection_service(*, settings: Settings, logger: LoggingPort):
     """Select the vehicle detection provider from configuration."""
     provider = (settings.vehicle_detection_provider or "opencv").strip().lower()
@@ -516,6 +579,12 @@ def build_container() -> AppContainer:
     )
 
     vision_ai_service = _build_vision_ai_service(settings=settings, logger=logger)
+    chat_service = _build_chat_service_provider(logger=logger)
+    from sentinel_anpr.application.use_cases.chat.send_chat_message_use_case import (
+        SendChatMessageUseCase,
+    )
+
+    send_chat_message_use_case = SendChatMessageUseCase(chat_service=chat_service)
     vehicle_detection_service = _build_vehicle_detection_service(settings=settings, logger=logger)
     license_plate_detection_service = _build_license_plate_detection_service(
         settings=settings,
@@ -772,5 +841,6 @@ def build_container() -> AppContainer:
         generate_challan_pdf_use_case=generate_challan_pdf_use_case,
         anchor_evidence_block_use_case=anchor_evidence_block_use_case,
         verify_investigation_integrity_use_case=verify_investigation_integrity_use_case,
+        send_chat_message_use_case=send_chat_message_use_case,
         vision_ai_service=vision_ai_service,
     )

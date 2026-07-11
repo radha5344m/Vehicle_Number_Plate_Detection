@@ -54,6 +54,7 @@ PROTECTED_ROUTES: set[tuple[str, str]] = {
     ("GET", "/v1/challans"),
     ("POST", "/v1/challans"),
     ("GET", "/v1/challans/analytics"),
+    ("POST", "/v1/chat/messages"),
 }
 
 PROTECTED_PREFIXES: tuple[str, ...] = (
