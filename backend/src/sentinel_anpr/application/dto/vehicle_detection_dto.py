@@ -64,3 +64,4 @@ class DetectVehiclesResult:
     """Vehicle detection outcome."""
 
     vehicles: tuple[DetectedVehicleDto, ...]
+    visible_plate_count: int

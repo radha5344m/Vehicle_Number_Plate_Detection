@@ -70,6 +70,7 @@ def test_detect_vehicles_endpoint_returns_bounding_boxes() -> None:
         assert response.status_code == 200
         vehicles = response.json()["data"]["vehicles"]
         assert len(vehicles) >= 1
+        assert response.json()["data"]["visible_plate_count"] >= 0
         first = vehicles[0]
         assert first["vehicle_id"]
         assert 0 <= first["x"] <= 1
@@ -77,6 +78,22 @@ def test_detect_vehicles_endpoint_returns_bounding_boxes() -> None:
         assert first["width"] > 0
         assert first["height"] > 0
         assert first["vehicle_type"]
+
+
+def test_count_visible_vehicles_endpoint_returns_vehicle_count() -> None:
+    with _client() as client:
+        token = _login_token(client)
+        response = client.post(
+            "/v1/workflow/count-visible-vehicles",
+            headers={"Authorization": f"Bearer {token}"},
+            files={"vehicle_image": ("vehicle.jpg", _vehicle_image_bytes(), "image/jpeg")},
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["vehicle_count"] >= 1
+        assert isinstance(data["vehicles"], list)
+        if data["vehicles"]:
+            assert "type" in data["vehicles"][0]
 
 
 def test_vehicle_verification_with_selected_regions_returns_independent_investigations() -> None:

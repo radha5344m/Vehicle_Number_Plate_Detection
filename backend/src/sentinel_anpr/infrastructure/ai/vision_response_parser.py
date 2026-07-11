@@ -78,6 +78,26 @@ def _extract_fields_from_fragment(cleaned: str) -> dict[str, Any] | None:
     return payload
 
 
+def parse_vehicle_count_json(raw_text: str) -> dict[str, Any] | None:
+    """Return a vehicle-count payload dict from model output text."""
+    cleaned = _strip_markdown_fences(raw_text)
+    if not cleaned:
+        return None
+
+    payload = _parse_with_json_decoder(cleaned)
+    if payload is not None:
+        return payload
+
+    vehicle_count_match = re.search(
+        r'"vehicle_count"\s*:\s*(?P<value>\d+)',
+        cleaned,
+    )
+    if vehicle_count_match is None:
+        return None
+
+    return {"vehicle_count": int(vehicle_count_match.group("value")), "vehicles": []}
+
+
 def parse_vision_json(raw_text: str) -> dict[str, Any] | None:
     """Return a vision payload dict from model output text."""
     cleaned = _strip_markdown_fences(raw_text)

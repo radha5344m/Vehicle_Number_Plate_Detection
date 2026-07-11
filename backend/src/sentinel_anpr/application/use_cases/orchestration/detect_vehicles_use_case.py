@@ -19,10 +19,16 @@ class DetectVehiclesUseCase:
         self._logger = logger
 
     def execute(self, command: DetectVehiclesCommand) -> DetectVehiclesResult:
+        scene_context = self._detection.analyze_scene(command.image_bytes)
         vehicles = self._detection.detect_vehicles(command.image_bytes)
+        visible_plate_count = len(scene_context.raw_plates)
         self._logger.info(
             "vehicle_detection_completed",
             vehicle_count=len(vehicles),
-            detail="Intelligent vehicle detection completed",
+            visible_plate_count=visible_plate_count,
+            detail="Intelligent vehicle and plate detection completed",
         )
-        return DetectVehiclesResult(vehicles=vehicles)
+        return DetectVehiclesResult(
+            vehicles=vehicles,
+            visible_plate_count=visible_plate_count,
+        )

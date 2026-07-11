@@ -21,6 +21,16 @@ export interface VehicleRegion {
 
 export interface VehicleDetectionResponse {
   vehicles: DetectedVehicle[];
+  visible_plate_count: number;
+}
+
+export interface VisibleVehicleType {
+  type: string;
+}
+
+export interface VisibleVehicleCountResponse {
+  vehicle_count: number;
+  vehicles: VisibleVehicleType[];
 }
 
 export function detectedVehicleToRegion(

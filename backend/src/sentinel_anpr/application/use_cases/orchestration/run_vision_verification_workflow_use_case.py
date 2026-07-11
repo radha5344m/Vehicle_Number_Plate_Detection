@@ -10,6 +10,7 @@ unaware of the concrete implementation (Hugging Face, stub, etc.). Repositories 
 domain entities are reused unchanged.
 """
 
+import hashlib
 import time
 import traceback
 import uuid
@@ -217,6 +218,17 @@ class RunVisionVerificationWorkflowUseCase:
                 current_step=STEP_ANALYZING_IMAGE,
                 message="Analyzing vehicle image...",
                 progress=25,
+            )
+            upload_sha256 = hashlib.sha256(image_bytes).hexdigest()
+            self._logger.info(
+                "upload_vision_image_audit",
+                workflow_id=workflow_id,
+                original_filename=command.original_filename,
+                image_width=upload_result.width,
+                image_height=upload_result.height,
+                byte_size=len(image_bytes),
+                sha256_before_hf=upload_sha256,
+                detail="Original uploaded image bytes before Hugging Face vision analysis",
             )
             analysis = self._vision.analyze_vehicle_image(image_bytes)
             analysis_confidence = analysis.confidence

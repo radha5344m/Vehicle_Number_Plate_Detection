@@ -93,6 +93,12 @@ class _FakeVision:
             explanation="Analyzed cropped region",
         )
 
+    def count_visible_vehicles(self, image_bytes: bytes):
+        del image_bytes
+        from sentinel_anpr.application.ports.vision_ai_service import VisibleVehicleCountResult
+
+        return VisibleVehicleCountResult(vehicle_count=1, vehicles=("car",))
+
 
 class _FakeLookup:
     def execute(self, command):
@@ -286,25 +292,11 @@ def test_selected_vehicle_workflow_crops_and_runs_one_vision_call_per_region() -
     assert all(size < len(full_image) for size in vision.received_sizes)
 
 
-def test_single_detected_vehicle_uses_detected_bbox_when_no_regions() -> None:
-    class _SingleVehicleSceneDetection(_FakeSceneDetection):
-        def detect_vehicles(self, image_bytes: bytes) -> tuple[DetectedVehicleDto, ...]:
-            del image_bytes
-            return (DetectedVehicleDto("detected-1", 0.1, 0.1, 0.35, 0.5, 0.9, "car"),)
-
-        def mask_regions_for_selection(
-            self,
-            image_bytes: bytes,
-            selected_vehicle_id: str,
-            scene_context: SceneAnalysisContextDto | None = None,
-        ) -> tuple[SelectedVehicleRegionDto, ...]:
-            del image_bytes, selected_vehicle_id, scene_context
-            return ()
-
+def test_single_vehicle_without_regions_sends_original_image() -> None:
     vision = _FakeVision()
     use_case = RunSelectedVehiclesVerificationWorkflowUseCase(
         single_vehicle_workflow=_single_workflow(vision),
-        scene_detection_service=_SingleVehicleSceneDetection(),
+        scene_detection_service=_FakeSceneDetection(),
         logger=_FakeLogger(),
     )
     full_image = _image_bytes()
@@ -323,5 +315,37 @@ def test_single_detected_vehicle_uses_detected_bbox_when_no_regions() -> None:
 
     assert len(result.investigations) == 1
     assert vision.calls == 1
-    assert vision.received_sizes[0] < len(full_image)
+    assert vision.received_sizes[0] == len(full_image)
     assert result.investigations[0].status == WorkflowStatus.COMPLETED
+
+
+def test_single_vehicle_without_regions_does_not_analyze_scene() -> None:
+    class _CountingSceneDetection(_FakeSceneDetection):
+        def __init__(self) -> None:
+            self.analyze_calls = 0
+
+        def analyze_scene(self, image_bytes: bytes) -> SceneAnalysisContextDto:
+            self.analyze_calls += 1
+            return super().analyze_scene(image_bytes)
+
+    scene = _CountingSceneDetection()
+    vision = _FakeVision()
+    use_case = RunSelectedVehiclesVerificationWorkflowUseCase(
+        single_vehicle_workflow=_single_workflow(vision),
+        scene_detection_service=scene,
+        logger=_FakeLogger(),
+    )
+    command = RunVehicleVerificationWorkflowCommand(
+        officer_id="officer-1",
+        officer_name="Test Officer",
+        badge_number="AP001",
+        officer_rank="Constable",
+        image_bytes=_image_bytes(),
+        content_type="image/jpeg",
+        original_filename="scene.jpg",
+        selected_regions=None,
+    )
+
+    use_case.execute(command)
+
+    assert scene.analyze_calls == 0

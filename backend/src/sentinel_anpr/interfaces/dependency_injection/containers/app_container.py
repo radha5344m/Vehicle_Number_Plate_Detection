@@ -106,6 +106,9 @@ from sentinel_anpr.application.use_cases.analytics.get_analytics_overview_use_ca
 from sentinel_anpr.application.use_cases.orchestration.run_vision_verification_workflow_use_case import (
     RunVisionVerificationWorkflowUseCase,
 )
+from sentinel_anpr.application.use_cases.orchestration.count_visible_vehicles_use_case import (
+    CountVisibleVehiclesUseCase,
+)
 from sentinel_anpr.application.use_cases.orchestration.detect_vehicles_use_case import (
     DetectVehiclesUseCase,
 )
@@ -186,6 +189,7 @@ class AppContainer:
     get_analytics_overview_use_case: GetAnalyticsOverviewUseCase
     run_vehicle_verification_workflow_use_case: RunVisionVerificationWorkflowUseCase
     detect_vehicles_use_case: DetectVehiclesUseCase
+    count_visible_vehicles_use_case: CountVisibleVehiclesUseCase
     run_selected_vehicles_verification_workflow_use_case: RunSelectedVehiclesVerificationWorkflowUseCase
     get_dashboard_summary_use_case: GetDashboardSummaryUseCase
     get_recent_activity_use_case: GetRecentActivityUseCase

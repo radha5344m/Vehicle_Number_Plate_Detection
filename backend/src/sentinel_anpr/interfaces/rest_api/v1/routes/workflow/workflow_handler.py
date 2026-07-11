@@ -13,9 +13,13 @@ from sentinel_anpr.application.dto.vehicle_detection_dto import (
     DetectVehiclesCommand,
     SelectedVehicleRegionDto,
 )
+from sentinel_anpr.application.dto.visible_vehicle_count_dto import CountVisibleVehiclesCommand
 from sentinel_anpr.application.dto.workflow_dto import RunVehicleVerificationWorkflowCommand
 from sentinel_anpr.application.use_cases.authentication.get_current_officer_use_case import (
     GetCurrentOfficerUseCase,
+)
+from sentinel_anpr.application.use_cases.orchestration.count_visible_vehicles_use_case import (
+    CountVisibleVehiclesUseCase,
 )
 from sentinel_anpr.application.use_cases.orchestration.detect_vehicles_use_case import (
     DetectVehiclesUseCase,
@@ -27,11 +31,13 @@ from sentinel_anpr.interfaces.rest_api.v1.dependencies.auth import require_permi
 from sentinel_anpr.interfaces.rest_api.v1.errors.error_response_builder import build_error_response
 from sentinel_anpr.interfaces.rest_api.v1.routes.workflow.workflow_mapper import (
     map_detection_result_to_response,
+    map_visible_vehicle_count_to_response,
     map_workflow_batch_result_to_response,
 )
 from sentinel_anpr.interfaces.schemas.responses.common.envelope import ApiResponse, ResponseMeta
 from sentinel_anpr.interfaces.schemas.responses.workflow.workflow_response import (
     VehicleDetectionData,
+    VisibleVehicleCountData,
     VehicleVerificationWorkflowData,
 )
 
@@ -100,6 +106,47 @@ async def detect_vehicles(
             500,
             "INTERNAL_ERROR",
             "Vehicle detection failed.",
+            log_level="error",
+            exc=exc,
+        )
+
+
+@router.post(
+    "/count-visible-vehicles",
+    response_model=ApiResponse[VisibleVehicleCountData],
+)
+async def count_visible_vehicles(
+    request: Request,
+    vehicle_image: UploadFile = File(...),
+    principal: AuthPrincipal = Depends(require_permission("vehicle_verification")),
+) -> ApiResponse[VisibleVehicleCountData] | JSONResponse:
+    """Count visible vehicles with vision AI before upload investigation routing."""
+    del principal
+    try:
+        image_bytes = await vehicle_image.read()
+        if len(image_bytes) > MAX_IMAGE_BYTES:
+            from sentinel_anpr.domain.ingestion.errors import InvalidImageError
+
+            raise InvalidImageError("Vehicle image must not exceed 10 MB")
+
+        correlation_id = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
+        use_case: CountVisibleVehiclesUseCase = request.app.state.container.count_visible_vehicles_use_case
+        result = use_case.execute(
+            CountVisibleVehiclesCommand(
+                image_bytes=image_bytes,
+                content_type=vehicle_image.content_type or "application/octet-stream",
+            )
+        )
+        return ApiResponse(
+            data=map_visible_vehicle_count_to_response(result),
+            meta=ResponseMeta(correlation_id=correlation_id),
+        )
+    except Exception as exc:
+        return build_error_response(
+            request,
+            500,
+            "INTERNAL_ERROR",
+            "Visible vehicle counting failed.",
             log_level="error",
             exc=exc,
         )

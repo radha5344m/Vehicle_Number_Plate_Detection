@@ -98,7 +98,7 @@ export function VehicleVerificationWorkflowPage() {
       setVehicleImage(file);
       setWorkflowStarted(true);
       try {
-        await startSmartWorkflow(file);
+        await startSmartWorkflow(file, undefined, { routeByVisionVehicleCount: true });
       } catch {
         // surfaced via hook + toast
       }
@@ -142,7 +142,7 @@ export function VehicleVerificationWorkflowPage() {
         <PageHeader
           badge="Vision AI"
           title="Vehicle Verification"
-          description="Single vehicles are verified automatically. Multiple vehicles use rectangle selection for independent investigation."
+          description="Single-vehicle images verify automatically. Multiple vehicles use rectangle selection for independent investigation."
         />
 
         <Card accent>

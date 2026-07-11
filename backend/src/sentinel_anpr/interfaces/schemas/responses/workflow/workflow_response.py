@@ -78,6 +78,20 @@ class VehicleDetectionData(BaseModel):
     """Vehicle detection response payload."""
 
     vehicles: list[DetectedVehicleData]
+    visible_plate_count: int
+
+
+class VisibleVehicleTypeData(BaseModel):
+    """One visible vehicle type from vision counting."""
+
+    type: str
+
+
+class VisibleVehicleCountData(BaseModel):
+    """Vision-only visible vehicle count for upload routing."""
+
+    vehicle_count: int
+    vehicles: list[VisibleVehicleTypeData]
 
 
 class VehicleVerificationWorkflowData(BaseModel):

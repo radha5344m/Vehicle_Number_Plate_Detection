@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sentinel_anpr.application.dto.vehicle_detection_dto import DetectedVehicleDto, DetectVehiclesResult
+from sentinel_anpr.application.dto.visible_vehicle_count_dto import CountVisibleVehiclesResult
 from sentinel_anpr.application.dto.workflow_dto import (
     RunVehicleVerificationWorkflowBatchResult,
     RunVehicleVerificationWorkflowResult,
@@ -17,6 +18,8 @@ from sentinel_anpr.interfaces.schemas.responses.workflow.workflow_response impor
     DetectedVehicleData,
     RiskSignalData,
     VehicleDetectionData,
+    VisibleVehicleCountData,
+    VisibleVehicleTypeData,
     VehicleVerificationWorkflowData,
     VerificationResultData,
     WorkflowStepData,
@@ -39,6 +42,14 @@ def map_detected_vehicle_to_response(vehicle: DetectedVehicleDto) -> DetectedVeh
 def map_detection_result_to_response(result: DetectVehiclesResult) -> VehicleDetectionData:
     return VehicleDetectionData(
         vehicles=[map_detected_vehicle_to_response(vehicle) for vehicle in result.vehicles],
+        visible_plate_count=result.visible_plate_count,
+    )
+
+
+def map_visible_vehicle_count_to_response(result: CountVisibleVehiclesResult) -> VisibleVehicleCountData:
+    return VisibleVehicleCountData(
+        vehicle_count=result.vehicle_count,
+        vehicles=[VisibleVehicleTypeData(type=vehicle.type) for vehicle in result.vehicles],
     )
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import time
 from collections.abc import Callable
@@ -14,6 +15,7 @@ from sentinel_anpr.application.ports.outbound.logging_port import LoggingPort
 from sentinel_anpr.application.ports.vision_ai_service import (
     VisionAnalysisResult,
     VisionAiService,
+    VisibleVehicleCountResult,
 )
 from sentinel_anpr.infrastructure.ai.huggingface_error import (
     DEFAULT_REQUEST_TIMEOUT_SECONDS,
@@ -21,8 +23,7 @@ from sentinel_anpr.infrastructure.ai.huggingface_error import (
     format_vision_error_message,
     parse_response_error,
 )
-from sentinel_anpr.infrastructure.ai.image_preprocess import preprocess_vehicle_image
-from sentinel_anpr.infrastructure.ai.vision_response_parser import parse_vision_json
+from sentinel_anpr.infrastructure.ai.vision_response_parser import parse_vehicle_count_json, parse_vision_json
 from sentinel_anpr.infrastructure.config.settings import resolve_hf_api_url, resolve_hf_token
 
 _DEFAULT_MODEL = "google/gemma-3-4b-it:deepinfra"
@@ -44,6 +45,25 @@ _ANALYSIS_PROMPT = (
     "In explanation, note scene context, any visible damage or modifications, and any "
     "uncertainties. Use empty strings for attributes that are not visible.\n"
     "Keep explanation to one short sentence (under 120 characters).\n"
+    "No markdown.\n"
+    "No extra text."
+)
+
+_VEHICLE_COUNT_PROMPT = (
+    "Count every fully or partially visible vehicle in this image.\n"
+    "Return ONLY valid JSON.\n"
+    "Schema:\n"
+    "{\n"
+    '  "vehicle_count": 1,\n'
+    '  "vehicles": [\n'
+    '    { "type": "motorcycle" }\n'
+    "  ]\n"
+    "}\n"
+    "Rules:\n"
+    "- vehicle_count must equal the number of items in vehicles.\n"
+    "- type must be a short vehicle category such as car, motorcycle, truck, bus, auto, or suv.\n"
+    "- Do not include registration numbers, colors, brands, or investigation details.\n"
+    "- Do not guess hidden vehicles.\n"
     "No markdown.\n"
     "No extra text."
 )
@@ -106,18 +126,9 @@ class HuggingFaceVisionService(VisionAiService):
             return self._empty(reason)
 
         original_size = self._image_dimensions(image_bytes)
-        try:
-            processed_bytes, mime_type = preprocess_vehicle_image(image_bytes)
-        except Exception as exc:
-            if self._logger is not None:
-                self._logger.error(
-                    "huggingface_vision_preprocess_failed",
-                    error=str(exc),
-                    detail="Image preprocessing failed",
-                )
-            return self._empty(f"Image preprocessing failed: {exc}")
-
-        processed_size = self._image_dimensions(processed_bytes)
+        mime_type = self._detect_mime_type(image_bytes)
+        sha256_hash = hashlib.sha256(image_bytes).hexdigest()
+        width, height = self._image_width_height(image_bytes)
         if self._logger is not None:
             self._logger.info(
                 "huggingface_vision_request_start",
@@ -125,14 +136,17 @@ class HuggingFaceVisionService(VisionAiService):
                 model=self._model,
                 api_url=self._api_url,
                 image_size=original_size,
-                processed_image_size=processed_size,
+                image_width=width,
+                image_height=height,
                 image_bytes=len(image_bytes),
-                processed_image_bytes=len(processed_bytes),
-                detail="Single Hugging Face vision request started",
+                mime_type=mime_type,
+                sha256_before_hf=sha256_hash,
+                sha256_sent_to_hf=sha256_hash,
+                detail="Upload image bytes sent to Hugging Face without preprocessing",
             )
 
         started = time.perf_counter()
-        payload = self._build_request_payload(processed_bytes, mime_type)
+        payload = self._build_request_payload(image_bytes, mime_type)
         headers = {
             "Authorization": f"Bearer {self._token}",
             "Content-Type": "application/json",
@@ -174,6 +188,76 @@ class HuggingFaceVisionService(VisionAiService):
                 model=self._model,
                 confidence=result.confidence,
                 registration_number=result.registration_number,
+            )
+        return result
+
+    def count_visible_vehicles(self, image_bytes: bytes) -> VisibleVehicleCountResult:
+        if not image_bytes:
+            return self._empty_vehicle_count("Image file is empty.")
+
+        if self._token is None:
+            reason = self._init_failure_reason or "Hugging Face client was not initialized."
+            if self._logger is not None:
+                self._logger.error("huggingface_vehicle_count_not_ready", reason=reason)
+            return self._empty_vehicle_count(reason)
+
+        mime_type = self._detect_mime_type(image_bytes)
+        sha256_hash = hashlib.sha256(image_bytes).hexdigest()
+        width, height = self._image_width_height(image_bytes)
+        if self._logger is not None:
+            self._logger.info(
+                "huggingface_vehicle_count_request_start",
+                vision_provider="huggingface",
+                model=self._model,
+                api_url=self._api_url,
+                image_width=width,
+                image_height=height,
+                image_bytes=len(image_bytes),
+                mime_type=mime_type,
+                sha256_before_hf=sha256_hash,
+                detail="Original upload image sent to Hugging Face for visible vehicle counting only",
+            )
+
+        started = time.perf_counter()
+        payload = self._build_request_payload(image_bytes, mime_type, prompt=_VEHICLE_COUNT_PROMPT)
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json",
+        }
+
+        response, failure_message = self._post_with_optional_service_busy_retry(
+            payload=payload,
+            headers=headers,
+        )
+        latency_ms = round((time.perf_counter() - started) * 1000, 2)
+
+        if failure_message is not None:
+            if self._logger is not None:
+                self._logger.error(
+                    "huggingface_vehicle_count_request_failed",
+                    model=self._model,
+                    latency_ms=latency_ms,
+                    error_message=failure_message,
+                )
+            return self._empty_vehicle_count(f"Vehicle count request failed: {failure_message}")
+
+        raw_text = self._extract_output_text(response)
+        if not raw_text:
+            if self._logger is not None:
+                self._logger.error(
+                    "huggingface_vehicle_count_empty_response",
+                    latency_ms=latency_ms,
+                )
+            return self._empty_vehicle_count("Vision model returned no vehicle count output.")
+
+        result = self._parse_vehicle_count(raw_text)
+        if self._logger is not None:
+            self._logger.info(
+                "huggingface_vehicle_count_request_completed",
+                latency_ms=latency_ms,
+                model=self._model,
+                vehicle_count=result.vehicle_count,
+                vehicle_types=list(result.vehicles),
             )
         return result
 
@@ -246,7 +330,13 @@ class HuggingFaceVisionService(VisionAiService):
                 )
             return None, str(exc)
 
-    def _build_request_payload(self, image_bytes: bytes, mime_type: str) -> dict[str, Any]:
+    def _build_request_payload(
+        self,
+        image_bytes: bytes,
+        mime_type: str,
+        *,
+        prompt: str = _ANALYSIS_PROMPT,
+    ) -> dict[str, Any]:
         image_data_url = self._to_data_url(image_bytes, mime_type)
         if self._uses_chat_completions_api():
             return {
@@ -256,7 +346,7 @@ class HuggingFaceVisionService(VisionAiService):
                         "role": "user",
                         "content": [
                             {"type": "image_url", "image_url": {"url": image_data_url}},
-                            {"type": "text", "text": _ANALYSIS_PROMPT},
+                            {"type": "text", "text": prompt},
                         ],
                     }
                 ],
@@ -266,7 +356,7 @@ class HuggingFaceVisionService(VisionAiService):
 
         return {
             "inputs": {
-                "text": _ANALYSIS_PROMPT,
+                "text": prompt,
                 "image": image_data_url,
             },
             "parameters": {
@@ -320,13 +410,37 @@ class HuggingFaceVisionService(VisionAiService):
 
     @staticmethod
     def _image_dimensions(image_bytes: bytes) -> str | None:
+        width, height = HuggingFaceVisionService._image_width_height(image_bytes)
+        if width is None or height is None:
+            return None
+        return f"{width}x{height}"
+
+    @staticmethod
+    def _image_width_height(image_bytes: bytes) -> tuple[int | None, int | None]:
         try:
             from PIL import Image
 
             with Image.open(io.BytesIO(image_bytes)) as image:
-                return f"{image.width}x{image.height}"
+                return image.width, image.height
         except Exception:
-            return None
+            return None, None
+
+    @staticmethod
+    def _detect_mime_type(image_bytes: bytes) -> str:
+        try:
+            from PIL import Image
+
+            with Image.open(io.BytesIO(image_bytes)) as image:
+                format_name = (image.format or "").upper()
+                if format_name == "PNG":
+                    return "image/png"
+                if format_name == "WEBP":
+                    return "image/webp"
+                if format_name in {"JPEG", "JPG"}:
+                    return "image/jpeg"
+        except Exception:
+            pass
+        return "application/octet-stream"
 
     def _parse(self, raw_text: str) -> VisionAnalysisResult:
         payload = parse_vision_json(raw_text)
@@ -349,6 +463,41 @@ class HuggingFaceVisionService(VisionAiService):
             explanation=self._as_str(payload.get("explanation")),
         )
 
+    def _parse_vehicle_count(self, raw_text: str) -> VisibleVehicleCountResult:
+        payload = parse_vehicle_count_json(raw_text)
+        if payload is None:
+            if self._logger is not None:
+                self._logger.warning(
+                    "huggingface_vehicle_count_parse_failed",
+                    raw=raw_text[:500],
+                )
+            return self._empty_vehicle_count("Unable to parse vehicle count response.")
+
+        vehicles_payload = payload.get("vehicles")
+        vehicle_types: list[str] = []
+        if isinstance(vehicles_payload, list):
+            for item in vehicles_payload:
+                if isinstance(item, dict):
+                    vehicle_type = self._as_str(item.get("type"))
+                    if vehicle_type is not None:
+                        vehicle_types.append(vehicle_type)
+
+        vehicle_count = self._as_int(payload.get("vehicle_count"))
+        if vehicle_count is None:
+            vehicle_count = len(vehicle_types)
+
+        if vehicle_count < 0:
+            vehicle_count = 0
+        if vehicle_types and vehicle_count < len(vehicle_types):
+            vehicle_count = len(vehicle_types)
+        if vehicle_count > 0 and not vehicle_types:
+            vehicle_types = ["vehicle"] * vehicle_count
+
+        return VisibleVehicleCountResult(
+            vehicle_count=vehicle_count,
+            vehicles=tuple(vehicle_types),
+        )
+
     @staticmethod
     def _as_str(value: Any) -> str | None:
         if value is None:
@@ -366,6 +515,15 @@ class HuggingFaceVisionService(VisionAiService):
             return None
 
     @staticmethod
+    def _as_int(value: Any) -> int | None:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
     def _empty(explanation: str) -> VisionAnalysisResult:
         return VisionAnalysisResult(
             registration_number=None,
@@ -374,5 +532,13 @@ class HuggingFaceVisionService(VisionAiService):
             brand=None,
             model=None,
             confidence=None,
+            explanation=explanation,
+        )
+
+    @staticmethod
+    def _empty_vehicle_count(explanation: str) -> VisibleVehicleCountResult:
+        return VisibleVehicleCountResult(
+            vehicle_count=0,
+            vehicles=(),
             explanation=explanation,
         )

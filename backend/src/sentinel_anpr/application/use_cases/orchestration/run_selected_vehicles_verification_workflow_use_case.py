@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+from sentinel_anpr.application.dto.scene_analysis_dto import SceneAnalysisContextDto
 from sentinel_anpr.application.dto.vehicle_detection_dto import SelectedVehicleRegionDto
 from sentinel_anpr.application.dto.workflow_dto import (
     RunVehicleVerificationWorkflowBatchResult,
@@ -40,33 +41,41 @@ class RunSelectedVehiclesVerificationWorkflowUseCase:
         regions = command.selected_regions
 
         if not regions:
-            detected_vehicles = self._scene_detection.detect_vehicles(command.image_bytes)
-            if len(detected_vehicles) == 1:
-                vehicle = detected_vehicles[0]
-                regions = (
-                    SelectedVehicleRegionDto(
-                        vehicle_id=vehicle.vehicle_id,
-                        x=vehicle.x,
-                        y=vehicle.y,
-                        width=vehicle.width,
-                        height=vehicle.height,
-                    ),
-                )
-                self._logger.info(
-                    "single_vehicle_auto_region_applied",
-                    workflow_id=workflow_id,
-                    vehicle_id=vehicle.vehicle_id,
-                    detail="Applied detected bounding box for single-vehicle automatic verification",
-                )
-            else:
-                investigation = self._single_vehicle_workflow.execute(command)
-                return RunVehicleVerificationWorkflowBatchResult(
-                    workflow_id=workflow_id,
-                    investigations=(investigation,),
-                )
+            self._logger.info(
+                "smart_investigation_routing_single_vehicle",
+                workflow_id=workflow_id,
+                detail="No rectangles selected — sending original uploaded image to vision",
+            )
+            investigation = self._single_vehicle_workflow.execute(command)
+            return RunVehicleVerificationWorkflowBatchResult(
+                workflow_id=workflow_id,
+                investigations=(investigation,),
+            )
+
+        scene_context = self._scene_detection.analyze_scene(command.image_bytes)
+        return self._run_region_investigations(
+            command=command,
+            workflow_id=workflow_id,
+            regions=regions,
+            scene_context=scene_context,
+        )
+
+    def _run_region_investigations(
+        self,
+        *,
+        command: RunVehicleVerificationWorkflowCommand,
+        workflow_id: str,
+        regions: tuple[SelectedVehicleRegionDto, ...],
+        scene_context: SceneAnalysisContextDto,
+    ) -> RunVehicleVerificationWorkflowBatchResult:
+        self._logger.info(
+            "smart_investigation_routing_multi_vehicle",
+            workflow_id=workflow_id,
+            selected_regions=len(regions),
+            detail="Multiple vehicles selected — using rectangle-based investigation preprocessing",
+        )
 
         investigations: list[RunVehicleVerificationWorkflowResult] = []
-        scene_context = self._scene_detection.analyze_scene(command.image_bytes)
         for index, region in enumerate(regions, start=1):
             mask_regions = self._scene_detection.mask_regions_for_selection(
                 command.image_bytes,

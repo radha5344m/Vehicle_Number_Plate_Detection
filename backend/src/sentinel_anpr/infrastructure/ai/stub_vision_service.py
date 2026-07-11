@@ -10,6 +10,7 @@ from __future__ import annotations
 from sentinel_anpr.application.ports.vision_ai_service import (
     VisionAiService,
     VisionAnalysisResult,
+    VisibleVehicleCountResult,
 )
 
 _STUB_REGISTRATION_NUMBER = "AP09AB1234"
@@ -28,4 +29,11 @@ class StubVisionService(VisionAiService):
             model="Innova",
             confidence=0.9,
             explanation="Stub vision analysis for development and tests.",
+        )
+
+    def count_visible_vehicles(self, image_bytes: bytes) -> VisibleVehicleCountResult:
+        del image_bytes
+        return VisibleVehicleCountResult(
+            vehicle_count=1,
+            vehicles=("car",),
         )

@@ -64,6 +64,39 @@ def _chat_response(text: str) -> httpx.Response:
     )
 
 
+def test_huggingface_sends_original_bytes_without_preprocessing() -> None:
+    logger = _FakeLogger()
+    original_bytes = _jpeg_bytes(width=1800, height=1200)
+    captured_payload: dict[str, object] = {}
+
+    class _CapturingTransport(httpx.BaseTransport):
+        def handle_request(self, request: httpx.Request) -> httpx.Response:
+            captured_payload["body"] = request.content
+            return _chat_response(
+                '{"registration_number":"KL02AR4411","vehicle_color":"white",'
+                '"vehicle_type":"car","brand":"Toyota","model":"Innova",'
+                '"confidence":0.91,"explanation":"Clear front plate"}'
+            )
+
+    client = httpx.Client(transport=_CapturingTransport())
+    service = HuggingFaceVisionService(
+        token="hf-test-token",
+        client=client,
+        logger=logger,
+        api_url="https://router.huggingface.co/v1/chat/completions",
+    )
+
+    result = service.analyze_vehicle_image(original_bytes)
+
+    assert result.registration_number == "KL02AR4411"
+    start_logs = [context for message, context in logger.infos if message == "huggingface_vision_request_start"]
+    assert start_logs
+    assert start_logs[0]["image_width"] == 1800
+    assert start_logs[0]["image_height"] == 1200
+    assert start_logs[0]["sha256_before_hf"] == start_logs[0]["sha256_sent_to_hf"]
+    assert start_logs[0]["image_bytes"] == len(original_bytes)
+
+
 def test_huggingface_parses_valid_json_into_vision_result() -> None:
     logger = _FakeLogger()
     transport = _FakeTransport(
@@ -163,3 +196,25 @@ def test_huggingface_empty_image() -> None:
 
     assert transport.calls == 0
     assert result.explanation == "Image file is empty."
+
+
+def test_huggingface_counts_visible_vehicles_from_original_image() -> None:
+    transport = _FakeTransport(
+        [
+            _chat_response(
+                '{"vehicle_count":3,"vehicles":[{"type":"motorcycle"},{"type":"motorcycle"},{"type":"motorcycle"}]}'
+            )
+        ]
+    )
+    client = httpx.Client(transport=transport)
+    service = HuggingFaceVisionService(
+        token="hf-test-token",
+        client=client,
+        api_url="https://router.huggingface.co/v1/chat/completions",
+    )
+
+    result = service.count_visible_vehicles(_jpeg_bytes())
+
+    assert transport.calls == 1
+    assert result.vehicle_count == 3
+    assert list(result.vehicles) == ["motorcycle", "motorcycle", "motorcycle"]

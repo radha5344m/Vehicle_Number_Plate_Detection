@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HttpError } from "@/services/api/httpClient";
+import { vehicleCountService } from "@/services/vehicleCountService";
 import { vehicleDetectionService } from "@/services/vehicleDetectionService";
 import { workflowService } from "@/services/workflowService";
 import type { VehicleVerificationWorkflowResult } from "@/types/api/workflow";
@@ -10,6 +11,7 @@ import {
   type VehicleRegion,
 } from "@/types/vehicleSelection";
 
+const COUNTING_VEHICLES_MESSAGE = "Counting visible vehicles with Vision AI…";
 const DETECTING_MESSAGE = "Detecting vehicles in the image…";
 const AUTO_VERIFYING_MESSAGE = "Starting automatic investigation…";
 const MANUAL_VERIFYING_MESSAGE = "Running independent investigations for each rectangle…";
@@ -40,7 +42,11 @@ function extractInvestigationResults(
 }
 
 interface UseVehicleVerificationWorkflowResult {
-  startSmartWorkflow: (vehicleImage: File, locationLabel?: string) => Promise<void>;
+  startSmartWorkflow: (
+    vehicleImage: File,
+    locationLabel?: string,
+    options?: { routeByVisionVehicleCount?: boolean },
+  ) => Promise<void>;
   verifyRectangles: (
     vehicleImage: File,
     regions: VehicleRegion[],
@@ -182,10 +188,16 @@ export function useVehicleVerificationWorkflow(): UseVehicleVerificationWorkflow
   );
 
   const startSmartWorkflow = useCallback(
-    async (vehicleImage: File, locationLabel?: string) => {
+    async (
+      vehicleImage: File,
+      locationLabel?: string,
+      options?: { routeByVisionVehicleCount?: boolean },
+    ) => {
       if (workflowActiveRef.current) {
         return;
       }
+
+      const routeByVisionVehicleCount = options?.routeByVisionVehicleCount ?? false;
 
       workflowActiveRef.current = true;
       requestAbortRef.current?.abort();
@@ -205,6 +217,50 @@ export function useVehicleVerificationWorkflow(): UseVehicleVerificationWorkflow
       let detectedRegions: VehicleRegion[] = [];
 
       try {
+        if (routeByVisionVehicleCount) {
+          const countResult = await vehicleCountService.countVisibleVehicles(vehicleImage, abort.signal);
+          if (abort.signal.aborted) {
+            return;
+          }
+
+          setDetectedCount(countResult.vehicle_count);
+
+          if (countResult.vehicle_count === 1) {
+            setIsDetecting(false);
+            setWorkflowMode("auto");
+            setLoading(true);
+            await runVerification(vehicleImage, [], abort.signal, locationLabel);
+            return;
+          }
+
+          if (countResult.vehicle_count > 1) {
+            const detection = await vehicleDetectionService.detectVehicles(vehicleImage, abort.signal);
+            if (abort.signal.aborted) {
+              return;
+            }
+
+            detectedRegions = relabelRegions(
+              detection.vehicles.map((vehicle, index) => detectedVehicleToRegion(vehicle, index)),
+            );
+            setRegions(detectedRegions);
+            setIsDetecting(false);
+            setWorkflowMode("manual");
+            setSelectedRegionId(detectedRegions[0]?.vehicle_id ?? null);
+            return;
+          }
+
+          setIsDetecting(false);
+          const fallbackRegion = createManualRegion(0);
+          const fallbackRegions = relabelRegions([fallbackRegion]);
+          setRegions(fallbackRegions);
+          setSelectedRegionId(fallbackRegion.vehicle_id);
+          setWorkflowMode("manual");
+          setDetectionError(
+            "No vehicles were detected by Vision AI. Draw rectangles around each vehicle you want to investigate.",
+          );
+          return;
+        }
+
         const detection = await vehicleDetectionService.detectVehicles(vehicleImage, abort.signal);
         if (abort.signal.aborted) {
           return;
@@ -277,7 +333,9 @@ export function useVehicleVerificationWorkflow(): UseVehicleVerificationWorkflow
       ? AUTO_VERIFYING_MESSAGE
       : MANUAL_VERIFYING_MESSAGE
     : isDetecting
-      ? DETECTING_MESSAGE
+      ? workflowMode === "detecting"
+        ? COUNTING_VEHICLES_MESSAGE
+        : DETECTING_MESSAGE
       : null;
 
   return {

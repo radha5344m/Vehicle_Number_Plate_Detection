@@ -139,6 +139,9 @@ from sentinel_anpr.application.use_cases.analytics.get_analytics_overview_use_ca
 from sentinel_anpr.application.use_cases.orchestration.run_vision_verification_workflow_use_case import (
     RunVisionVerificationWorkflowUseCase,
 )
+from sentinel_anpr.application.use_cases.orchestration.count_visible_vehicles_use_case import (
+    CountVisibleVehiclesUseCase,
+)
 from sentinel_anpr.application.use_cases.orchestration.detect_vehicles_use_case import (
     DetectVehiclesUseCase,
 )
@@ -733,6 +736,10 @@ def build_container() -> AppContainer:
         scene_detection_service=intelligent_scene_detection_service,
         logger=logger,
     )
+    count_visible_vehicles_use_case = CountVisibleVehiclesUseCase(
+        vision_ai_service=vision_ai_service,
+        logger=logger,
+    )
     run_selected_vehicles_verification_workflow_use_case = (
         RunSelectedVehiclesVerificationWorkflowUseCase(
             single_vehicle_workflow=run_vehicle_verification_workflow_use_case,
@@ -820,6 +827,7 @@ def build_container() -> AppContainer:
         get_analytics_overview_use_case=get_analytics_overview_use_case,
         run_vehicle_verification_workflow_use_case=run_vehicle_verification_workflow_use_case,
         detect_vehicles_use_case=detect_vehicles_use_case,
+        count_visible_vehicles_use_case=count_visible_vehicles_use_case,
         run_selected_vehicles_verification_workflow_use_case=(
             run_selected_vehicles_verification_workflow_use_case
         ),
